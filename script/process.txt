@@ -1,0 +1,171 @@
+This file documents how I cleaned and prepared the data used in my Phase II database load.
+
+1. Data sources
+
+I used two public Steam-related datasets.
+
+Source 1:
+FronkonGames Steam Games Dataset on Hugging Face
+URL: https://huggingface.co/datasets/FronkonGames/steam-games-dataset
+
+Purpose:
+This dataset was used as the main source for game-level metadata and the many-to-many lookup relationships needed for the following tables:
+Publisher
+Developer
+Platform
+Genre
+Tag
+Feature
+Game
+DevelopedBy
+Supports
+PublishedBy
+ClassifiedAs
+TaggedWith
+HasFeatures
+
+Original format:
+The dataset is downloadable in structured machine-learning formats such as parquet/CSV-style tabular data.
+
+Source 2:
+Steam Games Metadata and Player Reviews (2020–2024) on Mendeley Data
+URL: https://data.mendeley.com/datasets/jxy85cr3th/2
+
+Purpose:
+This dataset was used for the Review table.
+
+Original format:
+This dataset includes many review CSV files, where each file name begins with the Steam appid before an underscore. For example, a review file may be named like:
+2063120_84.csv
+
+2. General cleaning strategy
+
+I wrote a Python script to automate the cleaning instead of doing the work by hand. The script reads both sources, finds the intersection of games that appear in both datasets, and outputs cleaned CSV files that match my final relational schema.
+
+The reason I used the intersection is that my final schema includes both game-level data and review-level data, so I only wanted to keep games for which I had both metadata and reviews. This makes the loaded database internally consistent and avoids having games without reviews or reviews without matching games.
+
+3. Intersection step
+
+The script first reads the Hugging Face game dataset and extracts each GameID from the appID field.
+
+Then it scans the Mendeley review folder and extracts the appID from each file name by taking the numeric prefix before the first underscore.
+
+Example:
+2063120_84.csv -> GameID 2063120
+
+Only GameIDs that exist in both datasets are kept.
+
+4. Cleaning the Hugging Face dataset
+
+From the Hugging Face dataset, I kept only the fields needed for my final schema.
+
+Fields used:
+appID -> GameID
+name -> Title
+release_date -> ReleaseDate
+price -> Price
+developers
+publishers
+windows
+mac
+linux
+genres
+tags
+categories
+
+All other columns in the original Hugging Face dataset were not loaded into my relational tables and were therefore removed from the cleaned output.
+
+Transformations performed:
+- appID was renamed to GameID
+- name was renamed to Title
+- release_date was converted into SQL-style YYYY-MM-DD format when possible
+- price was kept as a numeric value
+- developers, publishers, genres, tags, and categories were split into separate values when the source stored multiple values in one field
+- windows, mac, and linux were converted into rows in the Supports table
+- categories were used to populate the Feature and HasFeatures tables
+- duplicate values were removed before writing each lookup table and relationship table
+
+5. Cleaning the Mendeley review dataset
+
+The Mendeley review files were used to populate the Review table.
+
+Because the review files are organized by appid in the file name, each review row was assigned to the corresponding GameID based on the file name prefix.
+
+Fields used for Review:
+ReviewDate
+IsRecommended
+HelpfulVotes
+HoursPlayed
+GameID
+
+The review CSV files did not always contain a direct review identifier that matched my schema cleanly, so the script generated a deterministic ReviewID for each cleaned review row.
+
+Transformations performed:
+- the appid from the file name was used as GameID
+- review dates were converted into SQL-style YYYY-MM-DD format when possible
+- recommendation values were normalized to 1/0 so they could be loaded into the BOOLEAN IsRecommended field
+- helpfulness/vote fields were mapped to HelpfulVotes
+- playtime fields were mapped to HoursPlayed
+- blank numeric values were left blank in the CSV so they would become NULL during loading
+- duplicate review rows, if any, were removed during cleaning
+
+6. Output files created
+
+The cleaning script outputs the following files:
+
+Publisher.csv
+Developer.csv
+Platform.csv
+Genre.csv
+Tag.csv
+Feature.csv
+Game.csv
+Review.csv
+DevelopedBy.csv
+Supports.csv
+PublishedBy.csv
+ClassifiedAs.csv
+TaggedWith.csv
+HasFeatures.csv
+
+These cleaned CSV files are the files loaded by load.sql.
+
+7. Duplicates and anomalies handled
+
+Several data-cleaning issues had to be handled.
+
+- Duplicate names in lookup tables:
+  Publisher, Developer, Genre, Tag, Feature, and Platform values could appear many times across different games. I removed duplicates so each lookup table only contains unique values.
+
+- Many-to-many duplicate rows:
+  Relationship tables such as DevelopedBy, PublishedBy, TaggedWith, ClassifiedAs, Supports, and HasFeatures could contain repeated pairs. I removed duplicate pairs before writing the final CSV files.
+
+- Mixed or missing values:
+  Some rows had missing or blank values for fields such as playtime, helpfulness, or optional metadata. These were left blank in the cleaned CSV so that they would load as NULL where appropriate.
+
+- Unicode / non-English text:
+  Some game, publisher, and developer names contain non-English characters, including Chinese text. The cleaned files were written in UTF-8 so they can be loaded correctly into VARCHAR columns.
+
+- File naming issue in Mendeley:
+  The review files are not named only by appid; instead, they begin with the appid followed by an underscore and additional text or numbers. I handled this by reading only the numeric prefix before the underscore.
+
+8. Schema-related decisions reflected in cleaning
+
+My final schema no longer includes Franchise, so no Franchise.csv file was produced.
+
+DeveloperType is still present in the schema, but the selected public datasets do not provide a reliable DeveloperType field. Therefore, DeveloperType is left blank in the cleaned data and loads as NULL.
+
+9. Replication steps
+
+To replicate the cleaned files:
+
+1. Download the Hugging Face Steam Games dataset.
+2. Download the Mendeley review dataset and place all review CSV files into one folder or subfolders.
+3. Run the Python cleaning script on both sources.
+4. The script writes cleaned CSV files into the output directory.
+5. Run setup.sql to create the tables.
+6. Run load.sql to load the cleaned CSV files into MySQL.
+
+10. Summary
+
+In summary, I combined one dataset for game metadata and one dataset for review data, kept only the intersection of GameIDs that appeared in both sources, normalized the values into my relational design, removed duplicates and invalid/missing cases where needed, and wrote one cleaned CSV file per table so the database can be loaded automatically.
