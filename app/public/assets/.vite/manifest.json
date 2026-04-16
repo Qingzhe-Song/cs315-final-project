@@ -1,0 +1,11 @@
+{
+  "frontend/app.tsx": {
+    "file": "app.js",
+    "name": "app",
+    "src": "frontend/app.tsx",
+    "isEntry": true,
+    "css": [
+      "app-BqHjjGUk.css"
+    ]
+  }
+}
