@@ -1,0 +1,16 @@
+{
+  "name": "steam-app",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p public/assets/vendor && cp node_modules/tabulator-tables/dist/css/tabulator.min.css public/assets/vendor/tabulator.min.css && npx esbuild frontend/app.ts --bundle --format=esm --outfile=public/assets/app.js",
+    "check": "npx tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "tabulator-tables": "^6.4.0"
+  }
+}

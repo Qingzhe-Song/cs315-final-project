@@ -1,2 +1,9 @@
 /clean
 /source
+/node_modules
+/app/node_modules
+/app/vendor
+/app/.env
+/finalProject.pdf
+/Qingzhe_Song_-_Phase_1_-_Proposal_and_ER_Diagram.pdf
+/example
