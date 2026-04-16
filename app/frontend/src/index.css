@@ -1,0 +1,140 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "tabulator-tables/dist/css/tabulator.min.css";
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --radius-sm: calc(var(--radius) - 0.5rem);
+    --radius-md: calc(var(--radius) - 0.25rem);
+    --radius-lg: var(--radius);
+    --font-sans: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+:root {
+    --background: #f4f8fd;
+    --foreground: #0f2746;
+    --card: #ffffff;
+    --card-foreground: #0f2746;
+    --popover: #ffffff;
+    --popover-foreground: #0f2746;
+    --primary: #002d72;
+    --primary-foreground: #f8fbff;
+    --secondary: #e7eff8;
+    --secondary-foreground: #12325b;
+    --muted: #eef4fa;
+    --muted-foreground: #5b6f8d;
+    --accent: #68ace5;
+    --accent-foreground: #0b2e57;
+    --destructive: #b42318;
+    --border: #ced9e8;
+    --input: #ffffff;
+    --ring: rgba(0, 94, 184, 0.28);
+    --radius: 1rem;
+    --font-display: "Fraunces", "Iowan Old Style", serif;
+}
+
+* {
+    box-sizing: border-box;
+    border-color: var(--border);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top right, rgba(104, 172, 229, 0.16), transparent 24%),
+        linear-gradient(180deg, #f8fbff 0%, #edf4fb 100%);
+    color: var(--foreground);
+    font-family: "Space Grotesk", "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(0, 45, 114, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 45, 114, 0.035) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.22), transparent 78%);
+}
+
+#root {
+    min-height: 100vh;
+}
+
+.font-display {
+    font-family: var(--font-display);
+}
+
+code,
+pre {
+    font-family: "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+}
+
+.tabulator-shell .tabulator {
+    border: none;
+    background: transparent;
+    font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+.tabulator-shell .tabulator-header {
+    border-bottom: 1px solid rgba(0, 45, 114, 0.08);
+    background: #edf3fb;
+}
+
+.tabulator-shell .tabulator-col,
+.tabulator-shell .tabulator-row {
+    background: transparent;
+}
+
+.tabulator-shell .tabulator-row:nth-child(even) {
+    background: rgba(237, 243, 251, 0.72);
+}
+
+.tabulator-shell .tabulator-cell,
+.tabulator-shell .tabulator-col-title {
+    color: var(--foreground);
+}
+
+.tabulator-shell .tabulator-cell {
+    border-right: 1px solid rgba(0, 45, 114, 0.06);
+}
+
+.tabulator-shell .tabulator-row {
+    border-bottom: 1px solid rgba(0, 45, 114, 0.05);
+}
+
+.table-empty-state {
+    display: flex;
+    min-height: 280px;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--muted-foreground);
+}
