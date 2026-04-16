@@ -40,7 +40,7 @@ FROM
         GROUP BY
             g.GameID
         HAVING
-            COUNT(r.ReviewID) >= 20
+            COUNT(r.ReviewID) >= 10000
             AND AVG(
                 CASE
                     WHEN r.IsRecommended THEN 1
@@ -59,13 +59,13 @@ ORDER BY
 SELECT
     yearly.YearReleased,
     yearly.GenreName,
-    yearly.AvgReviewsPerGame
+    ROUND(yearly.AvgReviewsPerGame, 2) AS AvgReviewsPerGame
 FROM
     (
         SELECT
             YEAR (g.ReleaseDate) AS YearReleased,
             ca.GenreName,
-            ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame
+            AVG(gr.ReviewCount) AS AvgReviewsPerGame
         FROM
             Game g
             JOIN ClassifiedAs ca ON g.GameID = ca.GameID
@@ -180,8 +180,7 @@ ORDER BY
 
 -- 5. Which developers consistently produce games with high recommendation rates across multiple genres?
 SELECT
-    d.DeveloperName,
-    d.DeveloperType,
+    db.DeveloperName,
     COUNT(DISTINCT ca.GenreName) AS NumGenres,
     COUNT(DISTINCT g.GameID) AS NumGames,
     COUNT(r.ReviewID) AS NumReviews,
@@ -195,14 +194,12 @@ SELECT
         2
     ) AS AvgRecommendationPct
 FROM
-    Developer d
-    JOIN DevelopedBy db ON d.DeveloperName = db.DeveloperName
+    DevelopedBy db
     JOIN Game g ON db.GameID = g.GameID
     JOIN ClassifiedAs ca ON g.GameID = ca.GameID
     JOIN Review r ON g.GameID = r.GameID
 GROUP BY
-    d.DeveloperName,
-    d.DeveloperType
+    db.DeveloperName
 HAVING
     COUNT(DISTINCT ca.GenreName) >= 2
     AND COUNT(DISTINCT g.GameID) >= 2
@@ -353,22 +350,25 @@ GROUP BY
     g.Title
 HAVING
     COUNT(r.ReviewID) >= 20
+    AND AVG(
+        CASE
+            WHEN r.IsRecommended THEN 1
+            ELSE 0
+        END
+    ) < 0.30
 ORDER BY
     MismatchScore DESC,
     ReviewCount DESC;
 
--- 10. Which publishers release the largest number of popular games within each developer type?
+-- 10. Which publishers release the largest number of popular games?
 SELECT
     pb.PublisherName,
-    d.DeveloperType,
     COUNT(DISTINCT g.GameID) AS NumPopularGames,
     ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
     ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
 FROM
     Game g
     JOIN PublishedBy pb ON g.GameID = pb.GameID
-    JOIN DevelopedBy db ON g.GameID = db.GameID
-    JOIN Developer d ON db.DeveloperName = d.DeveloperName
     JOIN (
         SELECT
             GameID,
@@ -387,8 +387,9 @@ FROM
 WHERE
     gr.ReviewCount >= 20
 GROUP BY
-    pb.PublisherName,
-    d.DeveloperType
+    pb.PublisherName
+HAVING
+    COUNT(DISTINCT g.GameID) >= 5
 ORDER BY
     NumPopularGames DESC,
     AvgRecommendationPct DESC;
@@ -397,11 +398,6 @@ ORDER BY
 SELECT
     g.Title,
     COUNT(DISTINCT s.PlatformName) AS NumPlatforms,
-    GROUP_CONCAT (
-        DISTINCT s.PlatformName
-        ORDER BY
-            s.PlatformName SEPARATOR ', '
-    ) AS Platforms,
     COUNT(r.ReviewID) AS ReviewCount,
     ROUND(
         AVG(
@@ -429,7 +425,6 @@ ORDER BY
 -- 12. What characteristics are most common among the top-reviewed games?
 SELECT
     ca.GenreName,
-    d.DeveloperType,
     CASE
         WHEN g.Price = 0 THEN 'Free'
         WHEN g.Price < 10 THEN 'Under $10'
@@ -443,8 +438,6 @@ SELECT
 FROM
     Game g
     JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN DevelopedBy db ON g.GameID = db.GameID
-    JOIN Developer d ON db.DeveloperName = d.DeveloperName
     JOIN (
         SELECT
             GameID,
@@ -481,7 +474,6 @@ WHERE
     )
 GROUP BY
     ca.GenreName,
-    d.DeveloperType,
     CASE
         WHEN g.Price = 0 THEN 'Free'
         WHEN g.Price < 10 THEN 'Under $10'
@@ -574,8 +566,7 @@ LIMIT
 
 -- 15. Which developers improved the most over time in recommendation rate and review count?
 SELECT
-    d.DeveloperName,
-    d.DeveloperType,
+    db.DeveloperName,
     ROUND(
         AVG(
             CASE
@@ -633,8 +624,7 @@ SELECT
         2
     ) AS ReviewCountImprovement
 FROM
-    Developer d
-    JOIN DevelopedBy db ON d.DeveloperName = db.DeveloperName
+    DevelopedBy db
     JOIN Game g ON db.GameID = g.GameID
     JOIN (
         SELECT
@@ -648,7 +638,7 @@ FROM
             db2.DeveloperName
         HAVING
             MIN(g2.ReleaseDate) < MAX(g2.ReleaseDate)
-    ) AS dev_bounds ON d.DeveloperName = dev_bounds.DeveloperName
+    ) AS dev_bounds ON db.DeveloperName = dev_bounds.DeveloperName
     JOIN (
         SELECT
             g3.GameID,
@@ -666,8 +656,7 @@ FROM
             g3.GameID
     ) AS stats ON g.GameID = stats.GameID
 GROUP BY
-    d.DeveloperName,
-    d.DeveloperType
+    db.DeveloperName
 ORDER BY
     RecommendationImprovement DESC,
     ReviewCountImprovement DESC;
