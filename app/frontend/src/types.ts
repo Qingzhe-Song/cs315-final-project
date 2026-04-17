@@ -6,8 +6,6 @@ export interface QueryInput {
     label: string;
     type: InputType;
     default: string | number;
-    min?: number;
-    max?: number;
 }
 
 export interface ChartConfig {
