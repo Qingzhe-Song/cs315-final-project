@@ -1,33 +1,27 @@
 import { Play } from 'lucide-react';
-import type { ChangeEventHandler, FormEventHandler, JSX } from 'react';
+import type { ChangeEvent, FormEvent, JSX } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQueryFormStore } from '@/hooks/use-query-explorer';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import type { QueryDefinition } from '@/types';
+import { runSelectedQuery } from '@/stores/query-explorer';
 
-interface QueryFormCardProps {
-    queryTitle: string;
-    querySummary: string;
-    selectedQuery: QueryDefinition | null;
-    formValues: Record<string, string>;
-    statusText: string;
-    isRunning: boolean;
-    onInputChange: ChangeEventHandler<HTMLInputElement>;
-    onSubmit: FormEventHandler<HTMLFormElement>;
-}
+function QueryFormCard(): JSX.Element {
+    const { queryTitle, querySummary, selectedQuery, formValues, statusText, isRunning, updateFormValue } =
+        useQueryFormStore();
 
-function QueryFormCard({
-    queryTitle,
-    querySummary,
-    selectedQuery,
-    formValues,
-    statusText,
-    isRunning,
-    onInputChange,
-    onSubmit,
-}: QueryFormCardProps): JSX.Element {
+    function handleInputChange(event: ChangeEvent<HTMLInputElement>): void {
+        const { name, value } = event.currentTarget;
+        updateFormValue(name, value);
+    }
+
+    function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+        event.preventDefault();
+        void runSelectedQuery();
+    }
+
     return (
         <Card>
             <CardHeader>
@@ -40,7 +34,7 @@ function QueryFormCard({
                 </div>
             </CardHeader>
             <CardContent>
-                <form className="space-y-6" onSubmit={onSubmit}>
+                <form className="space-y-6" onSubmit={handleSubmit}>
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {selectedQuery?.inputs.map((input) => (
                             <label key={input.name} className="space-y-2">
@@ -50,7 +44,7 @@ function QueryFormCard({
                                     name={input.name}
                                     type={input.type}
                                     value={formValues[input.name] ?? String(input.default)}
-                                    onChange={onInputChange}
+                                    onChange={handleInputChange}
                                     className="h-10"
                                 />
                             </label>

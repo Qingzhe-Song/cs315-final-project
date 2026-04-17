@@ -4,16 +4,11 @@ import type { JSX } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useQueryCatalogStore } from '@/hooks/use-query-explorer';
 import { cn } from '@/lib/utils';
-import type { QueryDefinition } from '@/types';
 
-interface QueryCatalogProps {
-    catalog: QueryDefinition[];
-    selectedQueryId: string;
-    onSelect: (queryId: string) => void;
-}
-
-function QueryCatalog({ catalog, selectedQueryId, onSelect }: QueryCatalogProps): JSX.Element {
+function QueryCatalog(): JSX.Element {
+    const { catalog, selectedQueryId, selectQuery } = useQueryCatalogStore();
     const queryCountLabel = catalog.length === 1 ? '1 preset query' : `${catalog.length} preset queries`;
 
     return (
@@ -36,7 +31,7 @@ function QueryCatalog({ catalog, selectedQueryId, onSelect }: QueryCatalogProps)
                                 className={cn(
                                     'h-auto w-full justify-start whitespace-normal px-4 py-4 text-left'
                                 )}
-                                onClick={() => onSelect(query.id)}
+                                onClick={() => selectQuery(query.id)}
                             >
                                 <div className="flex w-full flex-col gap-3">
                                     <div className="flex items-center justify-between gap-3">

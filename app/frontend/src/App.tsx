@@ -1,117 +1,22 @@
-import { useEffect, useState } from 'react';
-import type { ChangeEvent, FormEvent, JSX } from 'react';
+import { useEffect } from 'react';
+import type { JSX } from 'react';
 
 import { QueryCatalog } from '@/components/query-catalog';
 import { QueryFormCard } from '@/components/query-form-card';
 import { ResultsSection } from '@/components/results-section';
-import { fetchJson, apiUrl } from '@/lib/api';
-import { defaultFormValues } from '@/lib/query-results';
-
-import type { CatalogResponse, QueryDefinition, QueryResult } from './types';
+import { useAppTitleStore } from '@/hooks/use-query-explorer';
+import { initializeApp } from '@/stores/query-explorer';
 
 function App({ initialTitle }: { initialTitle: string }): JSX.Element {
-    const [appTitle, setAppTitle] = useState(initialTitle);
-    const [catalog, setCatalog] = useState<QueryDefinition[]>([]);
-    const [selectedQueryId, setSelectedQueryId] = useState('');
-    const [formValues, setFormValues] = useState<Record<string, string>>({});
-    const [latestResult, setLatestResult] = useState<QueryResult | null>(null);
-    const [statusText, setStatusText] = useState('Loading query catalog...');
-    const [isRunning, setIsRunning] = useState(false);
-    const [showVisualization, setShowVisualization] = useState(false);
-
-    const selectedQuery = catalog.find((query) => query.id === selectedQueryId) ?? null;
+    const appTitle = useAppTitleStore();
 
     useEffect(() => {
         document.title = appTitle;
     }, [appTitle]);
 
     useEffect(() => {
-        async function loadCatalog(): Promise<void> {
-            setStatusText('Loading query catalog...');
-            const payload = await fetchJson<CatalogResponse>(apiUrl('catalog'));
-            setAppTitle(payload.appTitle || initialTitle);
-            setCatalog(payload.queries);
-            setSelectedQueryId(payload.queries[0]?.id ?? '');
-        }
-
-        void loadCatalog();
+        void initializeApp(initialTitle);
     }, [initialTitle]);
-
-    useEffect(() => {
-        if (!selectedQuery) {
-            return;
-        }
-
-        setFormValues(defaultFormValues(selectedQuery));
-        setLatestResult(null);
-        setShowVisualization(false);
-        setStatusText('Parameters ready.');
-    }, [selectedQuery]);
-
-    async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-        event.preventDefault();
-
-        setIsRunning(true);
-        setShowVisualization(false);
-        setStatusText('Running query...');
-
-        try {
-            const result = await fetchJson<QueryResult>(apiUrl('run'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    queryId: selectedQuery?.id,
-                    params: formValues,
-                }),
-            });
-
-            setLatestResult(result);
-            setStatusText('Query complete.');
-        } catch {
-            setLatestResult(null);
-            setShowVisualization(false);
-            setStatusText('Request failed.');
-        } finally {
-            setIsRunning(false);
-        }
-    }
-
-    function handleInputChange(event: ChangeEvent<HTMLInputElement>): void {
-        const { name, value } = event.currentTarget;
-        setFormValues((current) => ({
-            ...current,
-            [name]: value,
-        }));
-    }
-
-    const visibleRows = latestResult?.rows ?? [];
-    const visibleRowTotal = latestResult ? visibleRows.length : 0;
-
-    const queryTitle = selectedQuery
-        ? `${selectedQuery.number}. ${selectedQuery.title}`
-        : 'Loading...';
-
-    const querySummary = selectedQuery?.summary ?? 'Loading query catalog...';
-
-    const tableSummary = latestResult
-        ? `${visibleRowTotal} of ${latestResult.rowCount} row(s) shown in ${latestResult.durationMs} ms.`
-        : selectedQuery
-          ? 'Run the selected analysis to populate the result grid.'
-          : 'No query available.';
-
-    const chartCaption = latestResult
-        ? 'Chart.js plots up to the first 12 rows returned from the database.'
-        : 'Run a query, review the table, then open the visualization if you need it.';
-
-    const chartEmptyMessage = latestResult
-        ? 'This result set did not expose numeric fields that can be charted.'
-        : selectedQuery
-          ? 'Run the selected query to render a chart.'
-          : 'Loading query catalog...';
-
-    const tableFallbackMessage = selectedQuery
-        ? 'Run the selected query to load results.'
-        : 'Loading query catalog...';
 
     return (
         <div className="min-h-screen bg-background">
@@ -122,35 +27,11 @@ function App({ initialTitle }: { initialTitle: string }): JSX.Element {
                 </header>
 
                 <section className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-                    <QueryCatalog
-                        catalog={catalog}
-                        selectedQueryId={selectedQueryId}
-                        onSelect={setSelectedQueryId}
-                    />
+                    <QueryCatalog />
 
                     <div className="space-y-6">
-                        <QueryFormCard
-                            queryTitle={queryTitle}
-                            querySummary={querySummary}
-                            selectedQuery={selectedQuery}
-                            formValues={formValues}
-                            statusText={statusText}
-                            isRunning={isRunning}
-                            onInputChange={handleInputChange}
-                            onSubmit={(event) => void handleSubmit(event)}
-                        />
-
-                        <ResultsSection
-                            result={latestResult}
-                            visibleRows={visibleRows}
-                            visibleRowTotal={visibleRowTotal}
-                            showVisualization={showVisualization}
-                            tableSummary={tableSummary}
-                            tableFallbackMessage={tableFallbackMessage}
-                            chartCaption={chartCaption}
-                            chartEmptyMessage={chartEmptyMessage}
-                            onToggleVisualization={() => setShowVisualization((current) => !current)}
-                        />
+                        <QueryFormCard />
+                        <ResultsSection />
                     </div>
                 </section>
             </main>

@@ -5,31 +5,21 @@ import { ResultsChart } from '@/components/results-chart';
 import { ResultsTable } from '@/components/results-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { QueryResult, RowValue } from '@/types';
+import { useResultsSectionStore } from '@/hooks/use-query-explorer';
 
-interface ResultsSectionProps {
-    result: QueryResult | null;
-    visibleRows: Record<string, RowValue>[];
-    visibleRowTotal: number;
-    showVisualization: boolean;
-    tableSummary: string;
-    tableFallbackMessage: string;
-    chartCaption: string;
-    chartEmptyMessage: string;
-    onToggleVisualization: () => void;
-}
+function ResultsSection(): JSX.Element {
+    const {
+        result,
+        visibleRows,
+        visibleRowTotal,
+        showVisualization,
+        tableSummary,
+        tableFallbackMessage,
+        chartCaption,
+        chartEmptyMessage,
+        toggleVisualization,
+    } = useResultsSectionStore();
 
-function ResultsSection({
-    result,
-    visibleRows,
-    visibleRowTotal,
-    showVisualization,
-    tableSummary,
-    tableFallbackMessage,
-    chartCaption,
-    chartEmptyMessage,
-    onToggleVisualization,
-}: ResultsSectionProps): JSX.Element {
     return (
         <div className="space-y-6">
             <Card>
@@ -54,7 +44,7 @@ function ResultsSection({
                                 Showing {visibleRowTotal} of {result.rowCount} rows.
                             </p>
                             <div className="flex flex-col gap-3 sm:flex-row">
-                                <Button type="button" onClick={onToggleVisualization}>
+                                <Button type="button" onClick={toggleVisualization}>
                                     <BarChart3 className="size-4" />
                                     {showVisualization ? 'Hide Visualization' : 'Show Visualization'}
                                 </Button>
