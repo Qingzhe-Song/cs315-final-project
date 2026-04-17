@@ -16,19 +16,19 @@ export function defaultFormValues(query: QueryDefinition): Record<string, string
 }
 
 export function getChartRows(result: QueryResult): ChartRows | null {
-    if (!result.rows.length || !result.chart.valueColumns.length) {
+    if (!result.rows.length || !result.query.chart.valueColumns.length) {
         return null;
     }
 
     const rows = result.rows.slice(0, 12);
     const labels = rows.map((row) =>
-        result.chart.labelColumns
+        result.query.chart.labelColumns
             .map((column) => String(row[column] ?? ''))
             .filter(Boolean)
             .join(' • ')
     );
 
-    const datasets = result.chart.valueColumns
+    const datasets = result.query.chart.valueColumns
         .map((column) => {
             let hasNumericValue = false;
 

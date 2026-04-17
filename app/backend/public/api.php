@@ -1,15 +1,34 @@
 <?php
-declare(strict_types=1);
 
-require_once __DIR__ . '/../config/env.php';
-
-load_env_file(dirname(__DIR__) . '/.env');
-
-function send_cors_headers(): void
+function send_cors_headers()
 {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type');
+}
+
+function send_json($statusCode, $payload)
+{
+    http_response_code($statusCode);
+    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function read_json_request()
+{
+    $rawBody = file_get_contents('php://input');
+
+    if ($rawBody === false || trim($rawBody) === '') {
+        return [];
+    }
+
+    $payload = json_decode($rawBody, true);
+
+    if (!is_array($payload)) {
+        throw new RuntimeException('Request body must be valid JSON.');
+    }
+
+    return $payload;
 }
 
 send_cors_headers();
@@ -24,38 +43,32 @@ require_once __DIR__ . '/../src/query_library.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-function send_json(int $statusCode, array $payload): void
-{
-    http_response_code($statusCode);
-    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 try {
-    $action = $_GET['action'] ?? 'catalog';
-
-    if ($action === 'catalog') {
-        send_json(200, [
-            'appTitle' => env('APP_TITLE'),
-            'queries' => get_query_catalog(),
-        ]);
-    }
+    $action = $_GET['action'] ?? 'run';
 
     if ($action !== 'run') {
-        send_json(200, []);
+        throw new InvalidArgumentException('Unsupported action.');
     }
 
-    $rawBody = file_get_contents('php://input');
-    $payload = json_decode($rawBody ?: '{}', true) ?: [];
-    $queryId = (string) ($payload['queryId'] ?? '');
-    $input = $payload['params'] ?? [];
+    $payload = read_json_request();
+    $queryId = isset($payload['queryId']) ? (string) $payload['queryId'] : '';
+    $params = [];
 
-    $result = execute_query($db, $queryId, $input);
+    if (isset($payload['params']) && is_array($payload['params'])) {
+        $params = $payload['params'];
+    }
+
+    $result = execute_query($db, $queryId, $params);
     $db->close();
 
     send_json(200, $result);
 } catch (Throwable $error) {
+    if (isset($db) && $db instanceof mysqli) {
+        $db->close();
+    }
+
     send_json(400, [
         'error' => 'Request failed.',
+        'details' => $error->getMessage(),
     ]);
 }

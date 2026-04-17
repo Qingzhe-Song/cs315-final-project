@@ -23,23 +23,15 @@ export interface QueryDefinition {
     chart: ChartConfig;
 }
 
-export interface CatalogResponse {
-    appTitle: string;
-    queries: QueryDefinition[];
-}
-
-export interface QueryResult {
-    query: {
-        id: string;
-        number: number;
-        title: string;
-        summary: string;
-    };
+export interface QueryExecutionResponse {
     columns: string[];
     rows: Record<string, RowValue>[];
     rowCount: number;
-    chart: ChartConfig;
     sql: string;
     params: Array<string | number>;
     durationMs: number;
+}
+
+export interface QueryResult extends QueryExecutionResponse {
+    query: QueryDefinition;
 }

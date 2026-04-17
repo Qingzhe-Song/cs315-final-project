@@ -1,26 +1,23 @@
 import { atom, computed } from 'nanostores';
 
 import { apiUrl, fetchJson } from '@/lib/api';
+import { queryCatalog } from '@/lib/query-catalog';
 import { defaultFormValues } from '@/lib/query-results';
-import type { CatalogResponse, QueryDefinition, QueryResult } from '@/types';
-
-type CatalogState = 'loading' | 'ready' | 'error';
+import type { QueryDefinition, QueryExecutionResponse, QueryResult } from '@/types';
 
 const DEFAULT_APP_TITLE = 'Steam Discovery Dashboard';
-const LOADING_STATUS_TEXT = 'Loading query catalog...';
 const READY_STATUS_TEXT = 'Parameters ready.';
 const REQUEST_FAILED_STATUS_TEXT = 'Request failed.';
 const NO_QUERY_STATUS_TEXT = 'No query available.';
 
 export const $appTitle = atom(DEFAULT_APP_TITLE);
-export const $catalog = atom<QueryDefinition[]>([]);
+export const $catalog = atom<QueryDefinition[]>(queryCatalog);
 export const $selectedQueryId = atom('');
 export const $formValues = atom<Record<string, string>>({});
 export const $latestResult = atom<QueryResult | null>(null);
-export const $statusText = atom(LOADING_STATUS_TEXT);
+export const $statusText = atom(READY_STATUS_TEXT);
 export const $isRunning = atom(false);
 export const $showVisualization = atom(false);
-export const $catalogState = atom<CatalogState>('loading');
 
 export const $selectedQuery = computed([$catalog, $selectedQueryId], (catalog, selectedQueryId) => {
     return catalog.find((query) => query.id === selectedQueryId) ?? null;
@@ -29,41 +26,25 @@ export const $selectedQuery = computed([$catalog, $selectedQueryId], (catalog, s
 export const $visibleRows = computed($latestResult, (latestResult) => latestResult?.rows ?? []);
 export const $visibleRowTotal = computed($visibleRows, (visibleRows) => visibleRows.length);
 
-export const $queryTitle = computed([$selectedQuery, $catalogState], (selectedQuery, catalogState) => {
+export const $queryTitle = computed($selectedQuery, (selectedQuery) => {
     if (selectedQuery) {
         return `${selectedQuery.number}. ${selectedQuery.title}`;
     }
 
-    if (catalogState === 'error') {
-        return 'Catalog unavailable';
-    }
-
-    if (catalogState === 'ready') {
-        return NO_QUERY_STATUS_TEXT;
-    }
-
-    return 'Loading...';
+    return NO_QUERY_STATUS_TEXT;
 });
 
-export const $querySummary = computed([$selectedQuery, $catalogState], (selectedQuery, catalogState) => {
+export const $querySummary = computed($selectedQuery, (selectedQuery) => {
     if (selectedQuery) {
         return selectedQuery.summary;
     }
 
-    if (catalogState === 'error') {
-        return 'The query catalog could not be loaded from the backend.';
-    }
-
-    if (catalogState === 'ready') {
-        return NO_QUERY_STATUS_TEXT;
-    }
-
-    return LOADING_STATUS_TEXT;
+    return NO_QUERY_STATUS_TEXT;
 });
 
 export const $tableSummary = computed(
-    [$latestResult, $visibleRowTotal, $selectedQuery, $catalogState],
-    (latestResult, visibleRowTotal, selectedQuery, catalogState) => {
+    [$latestResult, $visibleRowTotal, $selectedQuery],
+    (latestResult, visibleRowTotal, selectedQuery) => {
         if (latestResult) {
             return `${visibleRowTotal} of ${latestResult.rowCount} row(s) shown in ${latestResult.durationMs} ms.`;
         }
@@ -72,15 +53,7 @@ export const $tableSummary = computed(
             return 'Run the selected analysis to populate the result grid.';
         }
 
-        if (catalogState === 'error') {
-            return 'The result grid is unavailable until the catalog loads.';
-        }
-
-        if (catalogState === 'ready') {
-            return NO_QUERY_STATUS_TEXT;
-        }
-
-        return LOADING_STATUS_TEXT;
+        return NO_QUERY_STATUS_TEXT;
     }
 );
 
@@ -93,8 +66,8 @@ export const $chartCaption = computed($latestResult, (latestResult) => {
 });
 
 export const $chartEmptyMessage = computed(
-    [$latestResult, $selectedQuery, $catalogState],
-    (latestResult, selectedQuery, catalogState) => {
+    [$latestResult, $selectedQuery],
+    (latestResult, selectedQuery) => {
         if (latestResult) {
             return 'This result set did not expose numeric fields that can be charted.';
         }
@@ -103,27 +76,18 @@ export const $chartEmptyMessage = computed(
             return 'Run the selected query to render a chart.';
         }
 
-        if (catalogState === 'error') {
-            return 'The query catalog could not be loaded.';
-        }
-
-        return LOADING_STATUS_TEXT;
+        return NO_QUERY_STATUS_TEXT;
     }
 );
 
-export const $tableFallbackMessage = computed([$selectedQuery, $catalogState], (selectedQuery, catalogState) => {
+export const $tableFallbackMessage = computed($selectedQuery, (selectedQuery) => {
     if (selectedQuery) {
         return 'Run the selected query to load results.';
     }
 
-    if (catalogState === 'error') {
-        return 'The query catalog could not be loaded.';
-    }
-
-    return LOADING_STATUS_TEXT;
+    return NO_QUERY_STATUS_TEXT;
 });
 
-let catalogLoadPromise: Promise<void> | null = null;
 let hasLoadedCatalog = false;
 
 function applySelection(query: QueryDefinition | null, statusText: string): void {
@@ -141,34 +105,10 @@ export async function initializeApp(initialTitle: string): Promise<void> {
         return;
     }
 
-    if (catalogLoadPromise) {
-        return catalogLoadPromise;
-    }
-
-    $catalogState.set('loading');
-    $statusText.set(LOADING_STATUS_TEXT);
-
-    catalogLoadPromise = (async () => {
-        try {
-            const payload = await fetchJson<CatalogResponse>(apiUrl('catalog'));
-            const catalog = payload.queries;
-            const selectedQuery = catalog[0] ?? null;
-
-            $appTitle.set(payload.appTitle || initialTitle || DEFAULT_APP_TITLE);
-            $catalog.set(catalog);
-            $catalogState.set('ready');
-            applySelection(selectedQuery, selectedQuery ? READY_STATUS_TEXT : NO_QUERY_STATUS_TEXT);
-            hasLoadedCatalog = true;
-        } catch {
-            $catalog.set([]);
-            $catalogState.set('error');
-            applySelection(null, REQUEST_FAILED_STATUS_TEXT);
-        } finally {
-            catalogLoadPromise = null;
-        }
-    })();
-
-    return catalogLoadPromise;
+    const selectedQuery = queryCatalog[0] ?? null;
+    $catalog.set(queryCatalog);
+    applySelection(selectedQuery, selectedQuery ? READY_STATUS_TEXT : NO_QUERY_STATUS_TEXT);
+    hasLoadedCatalog = true;
 }
 
 export function selectQuery(queryId: string): void {
@@ -196,7 +136,7 @@ export async function runSelectedQuery(): Promise<void> {
     $statusText.set('Running query...');
 
     try {
-        const result = await fetchJson<QueryResult>(apiUrl('run'), {
+        const result = await fetchJson<QueryExecutionResponse>(apiUrl('run'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -205,7 +145,10 @@ export async function runSelectedQuery(): Promise<void> {
             }),
         });
 
-        $latestResult.set(result);
+        $latestResult.set({
+            ...result,
+            query: selectedQuery,
+        });
         $statusText.set('Query complete.');
     } catch {
         $latestResult.set(null);
