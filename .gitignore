@@ -5,6 +5,7 @@
 /app/public
 /app/vendor
 /app/backend/.env
+/app/frontend/.env
 /app/frontend/node_modules
 /app/frontend/dist
 /finalProject.pdf

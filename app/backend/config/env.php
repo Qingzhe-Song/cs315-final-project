@@ -47,12 +47,8 @@ function load_env_file(string $path): void
     }
 }
 
-function env_or_default(string $key, string $default): string
+function env(string $key): string
 {
     $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
-    if ($value === false || $value === null || $value === '') {
-        return $default;
-    }
-
     return (string) $value;
 }

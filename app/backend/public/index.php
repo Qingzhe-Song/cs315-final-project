@@ -5,8 +5,8 @@ require_once __DIR__ . '/../config/env.php';
 
 load_env_file(dirname(__DIR__) . '/.env');
 
-$appTitle = env_or_default('APP_TITLE', 'Steam Discovery Dashboard');
-$frontendUrl = env_or_default('FRONTEND_URL', 'http://127.0.0.1:5173');
+$appTitle = env('APP_TITLE');
+$frontendUrl = env('FRONTEND_URL');
 ?>
 <!DOCTYPE html>
 <html lang="en">

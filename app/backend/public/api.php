@@ -7,7 +7,7 @@ load_env_file(dirname(__DIR__) . '/.env');
 
 function allowed_origins(): array
 {
-    $rawOrigins = env_or_default('CORS_ALLOW_ORIGINS', 'http://127.0.0.1:5173,http://localhost:5173');
+    $rawOrigins = env('CORS_ALLOW_ORIGINS');
     $origins = array_map('trim', explode(',', $rawOrigins));
 
     return array_values(array_filter($origins, static fn (string $origin): bool => $origin !== ''));
@@ -51,32 +51,19 @@ try {
 
     if ($action === 'catalog') {
         send_json(200, [
-            'appTitle' => env_or_default('APP_TITLE', 'Steam Discovery Dashboard'),
+            'appTitle' => env('APP_TITLE'),
             'queries' => get_query_catalog(),
         ]);
     }
 
     if ($action !== 'run') {
-        throw new InvalidArgumentException('Unsupported API action.');
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        throw new InvalidArgumentException('The run action requires POST.');
+        send_json(200, []);
     }
 
     $rawBody = file_get_contents('php://input');
-    $payload = json_decode($rawBody ?: '{}', true, 512, JSON_THROW_ON_ERROR);
-
-    if (!is_array($payload)) {
-        throw new InvalidArgumentException('Request body must be a JSON object.');
-    }
-
-    $queryId = is_string($payload['queryId'] ?? null) ? $payload['queryId'] : '';
-    $input = is_array($payload['params'] ?? null) ? $payload['params'] : [];
-
-    if ($queryId === '') {
-        throw new InvalidArgumentException('A query id is required.');
-    }
+    $payload = json_decode($rawBody ?: '{}', true) ?: [];
+    $queryId = (string) ($payload['queryId'] ?? '');
+    $input = $payload['params'] ?? [];
 
     $result = execute_query($db, $queryId, $input);
     $db->close();
@@ -84,6 +71,6 @@ try {
     send_json(200, $result);
 } catch (Throwable $error) {
     send_json(400, [
-        'error' => $error->getMessage(),
+        'error' => 'Request failed.',
     ]);
 }

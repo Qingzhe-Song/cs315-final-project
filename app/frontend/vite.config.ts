@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
             strictPort: true,
             proxy: {
                 '/api.php': {
-                    target: env.VITE_BACKEND_URL || 'http://127.0.0.1:8000',
+                    target: env.VITE_BACKEND_URL,
                     changeOrigin: true,
                 },
             },

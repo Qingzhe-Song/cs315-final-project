@@ -6,12 +6,8 @@ import './index.css';
 
 const rootElement = document.querySelector<HTMLDivElement>('#root');
 
-if (!rootElement) {
-    throw new Error('Missing required node: #root');
-}
-
-ReactDOM.createRoot(rootElement).render(
+ReactDOM.createRoot(rootElement!).render(
     <React.StrictMode>
-        <App initialTitle={rootElement.dataset.appTitle ?? 'Steam Discovery Dashboard'} />
+        <App initialTitle={rootElement?.dataset.appTitle ?? 'Steam Discovery Dashboard'} />
     </React.StrictMode>
 );

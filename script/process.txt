@@ -165,6 +165,7 @@ To replicate the cleaned files:
 4. The script writes cleaned CSV files into the output directory.
 5. Run setup.sql to create the tables.
 6. Run load.sql to load the cleaned CSV files into MySQL.
+7. Run procedures.sql to create the stored procedures used by the backend.
 
 10. Summary
 

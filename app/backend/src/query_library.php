@@ -1,59 +1,31 @@
 <?php
 declare(strict_types=1);
 
-function int_param(array $input, string $key, int $default, int $min, int $max): int
+function int_param(array $input, string $key, int $default): int
 {
-    $value = $input[$key] ?? $default;
-
-    if (is_string($value)) {
-        $value = trim($value);
-    }
-
-    if ($value === '' || $value === null || !is_numeric((string) $value)) {
+    if (!isset($input[$key]) || $input[$key] === '') {
         return $default;
     }
 
-    $parsed = (int) round((float) $value);
-
-    return max($min, min($max, $parsed));
+    return (int) $input[$key];
 }
 
-function float_param(array $input, string $key, float $default, float $min, float $max): float
+function float_param(array $input, string $key, float $default): float
 {
-    $value = $input[$key] ?? $default;
-
-    if (is_string($value)) {
-        $value = trim($value);
-    }
-
-    if ($value === '' || $value === null || !is_numeric((string) $value)) {
+    if (!isset($input[$key]) || $input[$key] === '') {
         return $default;
     }
 
-    $parsed = (float) $value;
-
-    return max($min, min($max, $parsed));
+    return (float) $input[$key];
 }
 
-function string_param(array $input, string $key, string $default, int $maxLength): string
+function string_param(array $input, string $key, string $default): string
 {
-    $value = $input[$key] ?? $default;
-
-    if (!is_string($value)) {
+    if (!isset($input[$key])) {
         return $default;
     }
 
-    $trimmed = trim($value);
-
-    if ($trimmed === '') {
-        return $default;
-    }
-
-    if (function_exists('mb_substr')) {
-        return mb_substr($trimmed, 0, $maxLength);
-    }
-
-    return substr($trimmed, 0, $maxLength);
+    return (string) $input[$key];
 }
 
 function get_query_catalog(): array
@@ -237,572 +209,115 @@ function find_query_definition(string $queryId): ?array
     return null;
 }
 
+function build_procedure_plan(string $procedureName, string $types, array $params): array
+{
+    $placeholders = [];
+
+    foreach ($params as $_) {
+        $placeholders[] = '?';
+    }
+
+    return [
+        'sql' => sprintf('CALL %s(%s)', $procedureName, implode(', ', $placeholders)),
+        'types' => $types,
+        'params' => $params,
+    ];
+}
+
 function build_query_plan(string $queryId, array $input): array
 {
     switch ($queryId) {
         case 'q1':
-            $minReleaseYear = int_param($input, 'min_release_year', 2021, 1990, 2035);
-            $minReviews = int_param($input, 'min_reviews', 10, 1, 1000000);
-            $limit = int_param($input, 'limit', 15, 1, 100);
+            $minReleaseYear = int_param($input, 'min_release_year', 2021);
+            $minReviews = int_param($input, 'min_reviews', 10);
+            $limit = int_param($input, 'limit', 15);
 
-            return [
-                'sql' => "SELECT
-    ca.GenreName,
-    COUNT(DISTINCT g.GameID) AS NumGames,
-    COUNT(r.ReviewID) AS NumReviews,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS AvgRecommendationPct
-FROM Game g
-JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-JOIN Review r ON g.GameID = r.GameID
-WHERE g.ReleaseDate >= ?
-GROUP BY ca.GenreName
-HAVING COUNT(r.ReviewID) >= ?
-ORDER BY AvgRecommendationPct DESC, NumReviews DESC
-LIMIT {$limit}",
-                'types' => 'si',
-                'params' => [sprintf('%04d-01-01', $minReleaseYear), $minReviews],
-            ];
+            return build_procedure_plan('sp_query_q1', 'iii', [$minReleaseYear, $minReviews, $limit]);
 
         case 'q2':
-            $minReviews = int_param($input, 'min_reviews', 20, 1, 1000000);
-            $minRecommendationPct = float_param($input, 'min_recommendation_pct', 80.0, 1.0, 100.0);
-            $limit = int_param($input, 'limit', 15, 1, 100);
+            $minReviews = int_param($input, 'min_reviews', 20);
+            $minRecommendationPct = float_param($input, 'min_recommendation_pct', 80.0);
+            $limit = int_param($input, 'limit', 15);
 
-            return [
-                'sql' => "SELECT
-    pb.PublisherName,
-    COUNT(*) AS NumHighPerformingGames
-FROM (
-    SELECT
-        g.GameID
-    FROM Game g
-    JOIN Review r ON g.GameID = r.GameID
-    GROUP BY g.GameID
-    HAVING COUNT(r.ReviewID) >= ?
-       AND AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) >= ?
-) AS high_perf
-JOIN PublishedBy pb ON high_perf.GameID = pb.GameID
-GROUP BY pb.PublisherName
-ORDER BY NumHighPerformingGames DESC, pb.PublisherName
-LIMIT {$limit}",
-                'types' => 'id',
-                'params' => [$minReviews, $minRecommendationPct / 100],
-            ];
+            return build_procedure_plan('sp_query_q2', 'idi', [$minReviews, $minRecommendationPct, $limit]);
 
         case 'q3':
-            $limit = int_param($input, 'limit', 30, 1, 200);
+            $limit = int_param($input, 'limit', 30);
 
-            return [
-                'sql' => "SELECT
-    yearly.YearReleased,
-    yearly.GenreName,
-    yearly.AvgReviewsPerGame
-FROM (
-    SELECT
-        YEAR(g.ReleaseDate) AS YearReleased,
-        ca.GenreName,
-        ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame
-    FROM Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN (
-        SELECT
-            GameID,
-            COUNT(*) AS ReviewCount
-        FROM Review
-        GROUP BY GameID
-    ) AS gr ON g.GameID = gr.GameID
-    GROUP BY YEAR(g.ReleaseDate), ca.GenreName
-) AS yearly
-JOIN (
-    SELECT
-        x.YearReleased,
-        MAX(x.AvgReviewsPerGame) AS MaxAvgReviewsPerGame
-    FROM (
-        SELECT
-            YEAR(g.ReleaseDate) AS YearReleased,
-            ca.GenreName,
-            AVG(gr.ReviewCount) AS AvgReviewsPerGame
-        FROM Game g
-        JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-        JOIN (
-            SELECT
-                GameID,
-                COUNT(*) AS ReviewCount
-            FROM Review
-            GROUP BY GameID
-        ) AS gr ON g.GameID = gr.GameID
-        GROUP BY YEAR(g.ReleaseDate), ca.GenreName
-    ) AS x
-    GROUP BY x.YearReleased
-) AS best
-    ON yearly.YearReleased = best.YearReleased
-   AND yearly.AvgReviewsPerGame = best.MaxAvgReviewsPerGame
-ORDER BY yearly.YearReleased
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q3', 'i', [$limit]);
 
         case 'q4':
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    pg.Title,
-    YEAR(pg.ReleaseDate) AS ReleaseYear,
-    pg.ReviewCount,
-    ROUND(pg.RecommendationPct, 2) AS RecommendationPct,
-    ROUND(ya.AvgYearReviewCount, 2) AS AvgYearReviewCount,
-    ROUND(ya.AvgYearRecommendationPct, 2) AS AvgYearRecommendationPct
-FROM (
-    SELECT
-        g.GameID,
-        g.Title,
-        g.ReleaseDate,
-        COUNT(r.ReviewID) AS ReviewCount,
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-    FROM Game g
-    JOIN Review r ON g.GameID = r.GameID
-    GROUP BY g.GameID, g.Title, g.ReleaseDate
-) AS pg
-JOIN (
-    SELECT
-        t.ReleaseYear,
-        AVG(t.ReviewCount) AS AvgYearReviewCount,
-        AVG(t.RecommendationPct) AS AvgYearRecommendationPct
-    FROM (
-        SELECT
-            YEAR(g.ReleaseDate) AS ReleaseYear,
-            g.GameID,
-            COUNT(r.ReviewID) AS ReviewCount,
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-        FROM Game g
-        JOIN Review r ON g.GameID = r.GameID
-        GROUP BY YEAR(g.ReleaseDate), g.GameID
-    ) AS t
-    GROUP BY t.ReleaseYear
-) AS ya ON YEAR(pg.ReleaseDate) = ya.ReleaseYear
-WHERE pg.ReviewCount > ya.AvgYearReviewCount
-  AND pg.RecommendationPct < ya.AvgYearRecommendationPct
-ORDER BY pg.ReviewCount DESC, pg.RecommendationPct ASC
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q4', 'i', [$limit]);
 
         case 'q5':
-            $minGenres = int_param($input, 'min_genres', 2, 1, 20);
-            $minGames = int_param($input, 'min_games', 2, 1, 1000);
-            $minReviews = int_param($input, 'min_reviews', 20, 1, 1000000);
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $minGenres = int_param($input, 'min_genres', 2);
+            $minGames = int_param($input, 'min_games', 2);
+            $minReviews = int_param($input, 'min_reviews', 20);
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    d.DeveloperName,
-    d.DeveloperType,
-    COUNT(DISTINCT ca.GenreName) AS NumGenres,
-    COUNT(DISTINCT g.GameID) AS NumGames,
-    COUNT(r.ReviewID) AS NumReviews,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS AvgRecommendationPct
-FROM Developer d
-JOIN DevelopedBy db ON d.DeveloperName = db.DeveloperName
-JOIN Game g ON db.GameID = g.GameID
-JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-JOIN Review r ON g.GameID = r.GameID
-GROUP BY d.DeveloperName, d.DeveloperType
-HAVING COUNT(DISTINCT ca.GenreName) >= ?
-   AND COUNT(DISTINCT g.GameID) >= ?
-   AND COUNT(r.ReviewID) >= ?
-ORDER BY AvgRecommendationPct DESC, NumGenres DESC, NumGames DESC
-LIMIT {$limit}",
-                'types' => 'iii',
-                'params' => [$minGenres, $minGames, $minReviews],
-            ];
+            return build_procedure_plan('sp_query_q5', 'iiii', [$minGenres, $minGames, $minReviews, $limit]);
 
         case 'q6':
-            $limit = int_param($input, 'limit', 30, 1, 200);
+            $limit = int_param($input, 'limit', 30);
 
-            return [
-                'sql' => "SELECT
-    ca.GenreName,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under \$10'
-        WHEN g.Price < 30 THEN '\$10-\$29.99'
-        WHEN g.Price < 60 THEN '\$30-\$59.99'
-        ELSE '\$60+'
-    END AS PriceRange,
-    COUNT(DISTINCT g.GameID) AS NumGames,
-    ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
-    ROUND(
-        AVG(
-            CASE WHEN gr.ReviewCount > 0 THEN gr.RecommendationPct END
-        ),
-        2
-    ) AS AvgRecommendationPct
-FROM Game g
-JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-JOIN (
-    SELECT
-        GameID,
-        COUNT(*) AS ReviewCount,
-        AVG(CASE WHEN IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-    FROM Review
-    GROUP BY GameID
-) AS gr ON g.GameID = gr.GameID
-GROUP BY
-    ca.GenreName,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under \$10'
-        WHEN g.Price < 30 THEN '\$10-\$29.99'
-        WHEN g.Price < 60 THEN '\$30-\$59.99'
-        ELSE '\$60+'
-    END
-ORDER BY ca.GenreName, AvgReviewsPerGame DESC
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q6', 'i', [$limit]);
 
         case 'q7':
-            $genreKeyword = string_param($input, 'genre_keyword', '', 50);
-            $limit = int_param($input, 'limit', 40, 1, 250);
+            $genreKeyword = string_param($input, 'genre_keyword', '');
+            $limit = int_param($input, 'limit', 40);
 
-            return [
-                'sql' => "SELECT
-    YEAR(g.ReleaseDate) AS ReleaseYear,
-    ca.GenreName,
-    COUNT(DISTINCT g.GameID) AS NumReleasedGames,
-    COUNT(r.ReviewID) AS TotalReviews,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS AvgRecommendationPct
-FROM Game g
-JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-LEFT JOIN Review r ON g.GameID = r.GameID
-WHERE (? = '' OR ca.GenreName LIKE CONCAT('%', ?, '%'))
-GROUP BY YEAR(g.ReleaseDate), ca.GenreName
-ORDER BY ca.GenreName, ReleaseYear
-LIMIT {$limit}",
-                'types' => 'ss',
-                'params' => [$genreKeyword, $genreKeyword],
-            ];
+            return build_procedure_plan('sp_query_q7', 'si', [$genreKeyword, $limit]);
 
         case 'q8':
-            $minReviews = int_param($input, 'min_reviews', 10, 1, 1000000);
-            $featureKeyword = string_param($input, 'feature_keyword', 'multi', 50);
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $minReviews = int_param($input, 'min_reviews', 10);
+            $featureKeyword = string_param($input, 'feature_keyword', 'multi');
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    tw.TagName,
-    COUNT(DISTINCT g.GameID) AS NumGames,
-    COUNT(r.ReviewID) AS NumReviews,
-    ROUND(AVG(r.HelpfulVotes), 2) AS AvgHelpfulVotes,
-    ROUND(AVG(r.HoursPlayed), 2) AS AvgHoursPlayed,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS AvgRecommendationPct
-FROM Game g
-JOIN HasFeatures hf ON g.GameID = hf.GameID
-JOIN TaggedWith tw ON g.GameID = tw.GameID
-JOIN Review r ON g.GameID = r.GameID
-WHERE LOWER(hf.FeatureName) LIKE CONCAT('%', LOWER(?), '%')
-GROUP BY tw.TagName
-HAVING COUNT(r.ReviewID) >= ?
-ORDER BY AvgHelpfulVotes DESC, AvgHoursPlayed DESC, NumReviews DESC
-LIMIT {$limit}",
-                'types' => 'si',
-                'params' => [$featureKeyword, $minReviews],
-            ];
+            return build_procedure_plan('sp_query_q8', 'sii', [$featureKeyword, $minReviews, $limit]);
 
         case 'q9':
-            $minReviews = int_param($input, 'min_reviews', 20, 1, 1000000);
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $minReviews = int_param($input, 'min_reviews', 20);
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    g.Title,
-    COUNT(r.ReviewID) AS ReviewCount,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS RecommendationPct,
-    ROUND(
-        COUNT(r.ReviewID) * (
-            1 - AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END)
-        ),
-        2
-    ) AS MismatchScore
-FROM Game g
-JOIN Review r ON g.GameID = r.GameID
-GROUP BY g.GameID, g.Title
-HAVING COUNT(r.ReviewID) >= ?
-ORDER BY MismatchScore DESC, ReviewCount DESC
-LIMIT {$limit}",
-                'types' => 'i',
-                'params' => [$minReviews],
-            ];
+            return build_procedure_plan('sp_query_q9', 'ii', [$minReviews, $limit]);
 
         case 'q10':
-            $minReviews = int_param($input, 'min_reviews', 20, 1, 1000000);
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $minReviews = int_param($input, 'min_reviews', 20);
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    pb.PublisherName,
-    d.DeveloperType,
-    COUNT(DISTINCT g.GameID) AS NumPopularGames,
-    ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
-    ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
-FROM Game g
-JOIN PublishedBy pb ON g.GameID = pb.GameID
-JOIN DevelopedBy db ON g.GameID = db.GameID
-JOIN Developer d ON db.DeveloperName = d.DeveloperName
-JOIN (
-    SELECT
-        GameID,
-        COUNT(*) AS ReviewCount,
-        AVG(CASE WHEN IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-    FROM Review
-    GROUP BY GameID
-) AS gr ON g.GameID = gr.GameID
-WHERE gr.ReviewCount >= ?
-GROUP BY pb.PublisherName, d.DeveloperType
-ORDER BY NumPopularGames DESC, AvgRecommendationPct DESC
-LIMIT {$limit}",
-                'types' => 'i',
-                'params' => [$minReviews],
-            ];
+            return build_procedure_plan('sp_query_q10', 'ii', [$minReviews, $limit]);
 
         case 'q11':
-            $minPlatforms = int_param($input, 'min_platforms', 2, 2, 10);
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $minPlatforms = int_param($input, 'min_platforms', 2);
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    g.Title,
-    COUNT(DISTINCT s.PlatformName) AS NumPlatforms,
-    GROUP_CONCAT(
-        DISTINCT s.PlatformName
-        ORDER BY s.PlatformName SEPARATOR ', '
-    ) AS Platforms,
-    COUNT(r.ReviewID) AS ReviewCount,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS RecommendationPct
-FROM Game g
-JOIN Supports s ON g.GameID = s.GameID
-LEFT JOIN Review r ON g.GameID = r.GameID
-GROUP BY g.GameID, g.Title
-HAVING COUNT(DISTINCT s.PlatformName) >= ?
-ORDER BY NumPlatforms DESC, ReviewCount DESC, RecommendationPct DESC
-LIMIT {$limit}",
-                'types' => 'i',
-                'params' => [$minPlatforms],
-            ];
+            return build_procedure_plan('sp_query_q11', 'ii', [$minPlatforms, $limit]);
 
         case 'q12':
-            $topLimit = int_param($input, 'top_limit', 50, 5, 500);
-            $limit = int_param($input, 'limit', 25, 1, 100);
+            $topLimit = int_param($input, 'top_limit', 50);
+            $limit = int_param($input, 'limit', 25);
 
-            return [
-                'sql' => "SELECT
-    ca.GenreName,
-    d.DeveloperType,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under \$10'
-        WHEN g.Price < 30 THEN '\$10-\$29.99'
-        WHEN g.Price < 60 THEN '\$30-\$59.99'
-        ELSE '\$60+'
-    END AS PriceRange,
-    COUNT(DISTINCT g.GameID) AS NumTopGames,
-    ROUND(AVG(gr.ReviewCount), 2) AS AvgReviews,
-    ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
-FROM Game g
-JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-JOIN DevelopedBy db ON g.GameID = db.GameID
-JOIN Developer d ON db.DeveloperName = d.DeveloperName
-JOIN (
-    SELECT
-        GameID,
-        COUNT(*) AS ReviewCount,
-        AVG(CASE WHEN IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-    FROM Review
-    GROUP BY GameID
-) AS gr ON g.GameID = gr.GameID
-WHERE g.GameID IN (
-    SELECT
-        t.GameID
-    FROM (
-        SELECT
-            GameID,
-            COUNT(*) AS ReviewCount
-        FROM Review
-        GROUP BY GameID
-        ORDER BY ReviewCount DESC
-        LIMIT {$topLimit}
-    ) AS t
-)
-GROUP BY
-    ca.GenreName,
-    d.DeveloperType,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under \$10'
-        WHEN g.Price < 30 THEN '\$10-\$29.99'
-        WHEN g.Price < 60 THEN '\$30-\$59.99'
-        ELSE '\$60+'
-    END
-ORDER BY NumTopGames DESC, AvgRecommendationPct DESC
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q12', 'ii', [$topLimit, $limit]);
 
         case 'q13':
-            $limit = int_param($input, 'limit', 12, 1, 12);
+            $limit = int_param($input, 'limit', 12);
 
-            return [
-                'sql' => "SELECT
-    MONTH(g.ReleaseDate) AS ReleaseMonth,
-    COUNT(DISTINCT g.GameID) AS NumGames,
-    COUNT(r.ReviewID) AS NumReviews,
-    ROUND(COUNT(r.ReviewID) / COUNT(DISTINCT g.GameID), 2) AS AvgReviewsPerGame,
-    ROUND(
-        AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
-        2
-    ) AS AvgRecommendationPct
-FROM Game g
-JOIN Review r ON g.GameID = r.GameID
-GROUP BY MONTH(g.ReleaseDate)
-ORDER BY AvgReviewsPerGame DESC, AvgRecommendationPct DESC
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q13', 'i', [$limit]);
 
         case 'q14':
-            $limit = int_param($input, 'limit', 50, 1, 100);
+            $limit = int_param($input, 'limit', 50);
 
-            return [
-                'sql' => "SELECT
-    a.ReleaseYear,
-    a.GenreName,
-    a.Title AS MoreReviewedGame,
-    b.Title AS LessReviewedGame,
-    a.ReviewCount AS MoreReviewedCount,
-    b.ReviewCount AS LessReviewedCount,
-    (a.ReviewCount - b.ReviewCount) AS ReviewCountGap
-FROM (
-    SELECT
-        g.GameID,
-        g.Title,
-        YEAR(g.ReleaseDate) AS ReleaseYear,
-        ca.GenreName,
-        COUNT(r.ReviewID) AS ReviewCount
-    FROM Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN Review r ON g.GameID = r.GameID
-    GROUP BY g.GameID, g.Title, YEAR(g.ReleaseDate), ca.GenreName
-) AS a
-JOIN (
-    SELECT
-        g.GameID,
-        g.Title,
-        YEAR(g.ReleaseDate) AS ReleaseYear,
-        ca.GenreName,
-        COUNT(r.ReviewID) AS ReviewCount
-    FROM Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN Review r ON g.GameID = r.GameID
-    GROUP BY g.GameID, g.Title, YEAR(g.ReleaseDate), ca.GenreName
-) AS b
-    ON a.ReleaseYear = b.ReleaseYear
-   AND a.GenreName = b.GenreName
-   AND a.GameID < b.GameID
-WHERE a.ReviewCount > b.ReviewCount
-ORDER BY ReviewCountGap DESC, a.ReleaseYear, a.GenreName
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q14', 'i', [$limit]);
 
         case 'q15':
-            $limit = int_param($input, 'limit', 20, 1, 100);
+            $limit = int_param($input, 'limit', 20);
 
-            return [
-                'sql' => "SELECT
-    d.DeveloperName,
-    d.DeveloperType,
-    ROUND(
-        AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct END),
-        2
-    ) AS FirstRecommendationPct,
-    ROUND(
-        AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.RecommendationPct END),
-        2
-    ) AS LastRecommendationPct,
-    ROUND(
-        AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.RecommendationPct END)
-        - AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct END),
-        2
-    ) AS RecommendationImprovement,
-    ROUND(
-        AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount END),
-        2
-    ) AS FirstReviewCount,
-    ROUND(
-        AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.ReviewCount END),
-        2
-    ) AS LastReviewCount,
-    ROUND(
-        AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.ReviewCount END)
-        - AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount END),
-        2
-    ) AS ReviewCountImprovement
-FROM Developer d
-JOIN DevelopedBy db ON d.DeveloperName = db.DeveloperName
-JOIN Game g ON db.GameID = g.GameID
-JOIN (
-    SELECT
-        db2.DeveloperName,
-        MIN(g2.ReleaseDate) AS FirstReleaseDate,
-        MAX(g2.ReleaseDate) AS LastReleaseDate
-    FROM DevelopedBy db2
-    JOIN Game g2 ON db2.GameID = g2.GameID
-    GROUP BY db2.DeveloperName
-    HAVING MIN(g2.ReleaseDate) < MAX(g2.ReleaseDate)
-) AS dev_bounds ON d.DeveloperName = dev_bounds.DeveloperName
-JOIN (
-    SELECT
-        g3.GameID,
-        COUNT(r3.ReviewID) AS ReviewCount,
-        AVG(CASE WHEN r3.IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-    FROM Game g3
-    JOIN Review r3 ON g3.GameID = r3.GameID
-    GROUP BY g3.GameID
-) AS stats ON g.GameID = stats.GameID
-GROUP BY d.DeveloperName, d.DeveloperType
-ORDER BY RecommendationImprovement DESC, ReviewCountImprovement DESC
-LIMIT {$limit}",
-                'types' => '',
-                'params' => [],
-            ];
+            return build_procedure_plan('sp_query_q15', 'i', [$limit]);
     }
 
-    throw new InvalidArgumentException('Unknown query id.');
+    throw new InvalidArgumentException('Unknown query.');
 }
 
 function bind_query_params(mysqli_stmt $statement, string $types, array $params): void
@@ -821,6 +336,18 @@ function bind_query_params(mysqli_stmt $statement, string $types, array $params)
     call_user_func_array([$statement, 'bind_param'], $bindValues);
 }
 
+function flush_pending_results(mysqli $connection): void
+{
+    while ($connection->more_results()) {
+        $connection->next_result();
+        $result = $connection->store_result();
+
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+    }
+}
+
 function execute_query(mysqli $connection, string $queryId, array $input): array
 {
     $definition = find_query_definition($queryId);
@@ -834,8 +361,8 @@ function execute_query(mysqli $connection, string $queryId, array $input): array
     $statement = $connection->prepare($plan['sql']);
 
     bind_query_params($statement, $plan['types'], $plan['params']);
-
     $statement->execute();
+
     $rows = [];
     $columns = [];
 
@@ -866,6 +393,7 @@ function execute_query(mysqli $connection, string $queryId, array $input): array
     }
 
     $statement->close();
+    flush_pending_results($connection);
 
     return [
         'query' => [
