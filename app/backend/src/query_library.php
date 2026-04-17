@@ -49,7 +49,7 @@ function get_query_catalog(): array
             'title' => 'High-Performing Publishers',
             'summary' => 'Rank publishers by how many well-reviewed, high-volume games they released.',
             'inputs' => [
-                ['name' => 'min_reviews', 'label' => 'Minimum Reviews per Game', 'type' => 'number', 'default' => 20],
+                ['name' => 'min_reviews', 'label' => 'Minimum Reviews per Game', 'type' => 'number', 'default' => 10000],
                 ['name' => 'min_recommendation_pct', 'label' => 'Minimum Recommendation %', 'type' => 'number', 'default' => 80],
                 ['name' => 'limit', 'label' => 'Rows to Show', 'type' => 'number', 'default' => 15],
             ],
@@ -135,13 +135,13 @@ function get_query_catalog(): array
         [
             'id' => 'q10',
             'number' => 10,
-            'title' => 'Popular Publishers by Developer Type',
-            'summary' => 'Compare publishers across developer types using popular-game counts and review metrics.',
+            'title' => 'Popular Publishers',
+            'summary' => 'Rank publishers by how many popular games they released and their review performance.',
             'inputs' => [
                 ['name' => 'min_reviews', 'label' => 'Minimum Reviews per Game', 'type' => 'number', 'default' => 20],
                 ['name' => 'limit', 'label' => 'Rows to Show', 'type' => 'number', 'default' => 20],
             ],
-            'chart' => ['labelColumns' => ['PublisherName', 'DeveloperType'], 'valueColumns' => ['NumPopularGames'], 'type' => 'bar'],
+            'chart' => ['labelColumns' => ['PublisherName'], 'valueColumns' => ['NumPopularGames'], 'type' => 'bar'],
         ],
         [
             'id' => 'q11',
@@ -158,7 +158,7 @@ function get_query_catalog(): array
             'id' => 'q12',
             'number' => 12,
             'title' => 'Traits of Top-Reviewed Games',
-            'summary' => 'Profile the genre, developer type, and price range patterns of the most reviewed games.',
+            'summary' => 'Profile the genre and price range patterns of the most reviewed games.',
             'inputs' => [
                 ['name' => 'top_limit', 'label' => 'How Many Top-Reviewed Games', 'type' => 'number', 'default' => 50],
                 ['name' => 'limit', 'label' => 'Rows to Show', 'type' => 'number', 'default' => 25],
@@ -235,7 +235,7 @@ function build_query_plan(string $queryId, array $input): array
             return build_procedure_plan('sp_query_q1', 'iii', [$minReleaseYear, $minReviews, $limit]);
 
         case 'q2':
-            $minReviews = int_param($input, 'min_reviews', 20);
+            $minReviews = int_param($input, 'min_reviews', 10000);
             $minRecommendationPct = float_param($input, 'min_recommendation_pct', 80.0);
             $limit = int_param($input, 'limit', 15);
 

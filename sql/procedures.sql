@@ -71,12 +71,12 @@ BEGIN
     SELECT
         yearly.YearReleased,
         yearly.GenreName,
-        yearly.AvgReviewsPerGame
+        ROUND(yearly.AvgReviewsPerGame, 2) AS AvgReviewsPerGame
     FROM (
         SELECT
             YEAR(g.ReleaseDate) AS YearReleased,
             ca.GenreName,
-            ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame
+            AVG(gr.ReviewCount) AS AvgReviewsPerGame
         FROM Game g
         JOIN ClassifiedAs ca ON g.GameID = ca.GameID
         JOIN (
@@ -169,8 +169,7 @@ CREATE PROCEDURE sp_query_q5(
 )
 BEGIN
     SELECT
-        d.DeveloperName,
-        d.DeveloperType,
+        db.DeveloperName,
         COUNT(DISTINCT ca.GenreName) AS NumGenres,
         COUNT(DISTINCT g.GameID) AS NumGames,
         COUNT(r.ReviewID) AS NumReviews,
@@ -178,12 +177,11 @@ BEGIN
             AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
             2
         ) AS AvgRecommendationPct
-    FROM Developer d
-    JOIN DevelopedBy db ON d.DeveloperName = db.DeveloperName
+    FROM DevelopedBy db
     JOIN Game g ON db.GameID = g.GameID
     JOIN ClassifiedAs ca ON g.GameID = ca.GameID
     JOIN Review r ON g.GameID = r.GameID
-    GROUP BY d.DeveloperName, d.DeveloperType
+    GROUP BY db.DeveloperName
     HAVING COUNT(DISTINCT ca.GenreName) >= p_min_genres
        AND COUNT(DISTINCT g.GameID) >= p_min_games
        AND COUNT(r.ReviewID) >= p_min_reviews
@@ -307,6 +305,7 @@ BEGIN
     JOIN Review r ON g.GameID = r.GameID
     GROUP BY g.GameID, g.Title
     HAVING COUNT(r.ReviewID) >= p_min_reviews
+       AND AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) < 0.30
     ORDER BY MismatchScore DESC, ReviewCount DESC
     LIMIT p_limit_rows;
 END $$
@@ -318,14 +317,11 @@ CREATE PROCEDURE sp_query_q10(
 BEGIN
     SELECT
         pb.PublisherName,
-        d.DeveloperType,
         COUNT(DISTINCT g.GameID) AS NumPopularGames,
         ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
         ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
     FROM Game g
     JOIN PublishedBy pb ON g.GameID = pb.GameID
-    JOIN DevelopedBy db ON g.GameID = db.GameID
-    JOIN Developer d ON db.DeveloperName = d.DeveloperName
     JOIN (
         SELECT
             GameID,
@@ -335,7 +331,8 @@ BEGIN
         GROUP BY GameID
     ) AS gr ON g.GameID = gr.GameID
     WHERE gr.ReviewCount >= p_min_reviews
-    GROUP BY pb.PublisherName, d.DeveloperType
+    GROUP BY pb.PublisherName
+    HAVING COUNT(DISTINCT g.GameID) >= 5
     ORDER BY NumPopularGames DESC, AvgRecommendationPct DESC
     LIMIT p_limit_rows;
 END $$
@@ -348,10 +345,6 @@ BEGIN
     SELECT
         g.Title,
         COUNT(DISTINCT s.PlatformName) AS NumPlatforms,
-        GROUP_CONCAT(
-            DISTINCT s.PlatformName
-            ORDER BY s.PlatformName SEPARATOR ', '
-        ) AS Platforms,
         COUNT(r.ReviewID) AS ReviewCount,
         ROUND(
             AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
@@ -373,7 +366,6 @@ CREATE PROCEDURE sp_query_q12(
 BEGIN
     SELECT
         ca.GenreName,
-        d.DeveloperType,
         CASE
             WHEN g.Price = 0 THEN 'Free'
             WHEN g.Price < 10 THEN 'Under $10'
@@ -386,8 +378,6 @@ BEGIN
         ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
     FROM Game g
     JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN DevelopedBy db ON g.GameID = db.GameID
-    JOIN Developer d ON db.DeveloperName = d.DeveloperName
     JOIN (
         SELECT
             GameID,
@@ -411,7 +401,6 @@ BEGIN
     )
     GROUP BY
         ca.GenreName,
-        d.DeveloperType,
         CASE
             WHEN g.Price = 0 THEN 'Free'
             WHEN g.Price < 10 THEN 'Under $10'
@@ -492,8 +481,7 @@ CREATE PROCEDURE sp_query_q15(
 )
 BEGIN
     SELECT
-        d.DeveloperName,
-        d.DeveloperType,
+        db.DeveloperName,
         ROUND(
             AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct END),
             2
@@ -520,8 +508,7 @@ BEGIN
             - AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount END),
             2
         ) AS ReviewCountImprovement
-    FROM Developer d
-    JOIN DevelopedBy db ON d.DeveloperName = db.DeveloperName
+    FROM DevelopedBy db
     JOIN Game g ON db.GameID = g.GameID
     JOIN (
         SELECT
@@ -532,7 +519,7 @@ BEGIN
         JOIN Game g2 ON db2.GameID = g2.GameID
         GROUP BY db2.DeveloperName
         HAVING MIN(g2.ReleaseDate) < MAX(g2.ReleaseDate)
-    ) AS dev_bounds ON d.DeveloperName = dev_bounds.DeveloperName
+    ) AS dev_bounds ON db.DeveloperName = dev_bounds.DeveloperName
     JOIN (
         SELECT
             g3.GameID,
@@ -542,7 +529,7 @@ BEGIN
         JOIN Review r3 ON g3.GameID = r3.GameID
         GROUP BY g3.GameID
     ) AS stats ON g.GameID = stats.GameID
-    GROUP BY d.DeveloperName, d.DeveloperType
+    GROUP BY db.DeveloperName
     ORDER BY RecommendationImprovement DESC, ReviewCountImprovement DESC
     LIMIT p_limit_rows;
 END $$
