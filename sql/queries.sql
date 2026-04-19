@@ -27,11 +27,8 @@ ORDER BY
     NumReviews DESC;
 
 -- 2. Which publishers have released the largest number of games that have both high recommendation rates and high review counts?
-SELECT
-    pb.PublisherName,
-    COUNT(*) AS NumHighPerformingGames
-FROM
-    (
+WITH
+    high_perf AS (
         SELECT
             g.GameID
         FROM
@@ -47,8 +44,13 @@ FROM
                     ELSE 0
                 END
             ) >= 0.80
-    ) AS high_perf
-    JOIN PublishedBy pb ON high_perf.GameID = pb.GameID
+    )
+SELECT
+    pb.PublisherName,
+    COUNT(*) AS NumHighPerformingGames
+FROM
+    high_perf hp
+    JOIN PublishedBy pb ON hp.GameID = pb.GameID
 GROUP BY
     pb.PublisherName
 ORDER BY
@@ -56,75 +58,52 @@ ORDER BY
     pb.PublisherName;
 
 -- 3. For each release year, which genre had the highest average review count per game?
-SELECT
-    yearly.YearReleased,
-    yearly.GenreName,
-    ROUND(yearly.AvgReviewsPerGame, 2) AS AvgReviewsPerGame
-FROM
-    (
+WITH
+    review_counts AS (
+        SELECT
+            GameID,
+            COUNT(*) AS ReviewCount
+        FROM
+            Review
+        GROUP BY
+            GameID
+    ),
+    yearly AS (
         SELECT
             YEAR (g.ReleaseDate) AS YearReleased,
             ca.GenreName,
-            AVG(gr.ReviewCount) AS AvgReviewsPerGame
+            AVG(rc.ReviewCount) AS AvgReviewsPerGame
         FROM
             Game g
             JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-            JOIN (
-                SELECT
-                    GameID,
-                    COUNT(*) AS ReviewCount
-                FROM
-                    Review
-                GROUP BY
-                    GameID
-            ) AS gr ON g.GameID = gr.GameID
+            JOIN review_counts rc ON g.GameID = rc.GameID
         GROUP BY
             YEAR (g.ReleaseDate),
             ca.GenreName
-    ) AS yearly
-    JOIN (
+    ),
+    best AS (
         SELECT
-            x.YearReleased,
-            MAX(x.AvgReviewsPerGame) AS MaxAvgReviewsPerGame
+            YearReleased,
+            MAX(AvgReviewsPerGame) AS MaxAvgReviewsPerGame
         FROM
-            (
-                SELECT
-                    YEAR (g.ReleaseDate) AS YearReleased,
-                    ca.GenreName,
-                    AVG(gr.ReviewCount) AS AvgReviewsPerGame
-                FROM
-                    Game g
-                    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-                    JOIN (
-                        SELECT
-                            GameID,
-                            COUNT(*) AS ReviewCount
-                        FROM
-                            Review
-                        GROUP BY
-                            GameID
-                    ) AS gr ON g.GameID = gr.GameID
-                GROUP BY
-                    YEAR (g.ReleaseDate),
-                    ca.GenreName
-            ) AS x
+            yearly
         GROUP BY
-            x.YearReleased
-    ) AS best ON yearly.YearReleased = best.YearReleased
-    AND yearly.AvgReviewsPerGame = best.MaxAvgReviewsPerGame
+            YearReleased
+    )
+SELECT
+    y.YearReleased,
+    y.GenreName,
+    ROUND(y.AvgReviewsPerGame, 2) AS AvgReviewsPerGame
+FROM
+    yearly y
+    JOIN best b ON y.YearReleased = b.YearReleased
+    AND y.AvgReviewsPerGame = b.MaxAvgReviewsPerGame
 ORDER BY
-    yearly.YearReleased;
+    y.YearReleased;
 
 -- 4. Which games have unusually high review counts despite having below-average recommendation rates compared with other games released in the same year?
-SELECT
-    pg.Title,
-    YEAR (pg.ReleaseDate) AS ReleaseYear,
-    pg.ReviewCount,
-    ROUND(pg.RecommendationPct, 2) AS RecommendationPct,
-    ROUND(ya.AvgYearReviewCount, 2) AS AvgYearReviewCount,
-    ROUND(ya.AvgYearRecommendationPct, 2) AS AvgYearRecommendationPct
-FROM
-    (
+WITH
+    per_game AS (
         SELECT
             g.GameID,
             g.Title,
@@ -143,34 +122,27 @@ FROM
             g.GameID,
             g.Title,
             g.ReleaseDate
-    ) AS pg
-    JOIN (
+    ),
+    year_averages AS (
         SELECT
-            t.ReleaseYear,
-            AVG(t.ReviewCount) AS AvgYearReviewCount,
-            AVG(t.RecommendationPct) AS AvgYearRecommendationPct
+            YEAR (ReleaseDate) AS ReleaseYear,
+            AVG(ReviewCount) AS AvgYearReviewCount,
+            AVG(RecommendationPct) AS AvgYearRecommendationPct
         FROM
-            (
-                SELECT
-                    YEAR (g.ReleaseDate) AS ReleaseYear,
-                    g.GameID,
-                    COUNT(r.ReviewID) AS ReviewCount,
-                    AVG(
-                        CASE
-                            WHEN r.IsRecommended THEN 1
-                            ELSE 0
-                        END
-                    ) * 100 AS RecommendationPct
-                FROM
-                    Game g
-                    JOIN Review r ON g.GameID = r.GameID
-                GROUP BY
-                    YEAR (g.ReleaseDate),
-                    g.GameID
-            ) AS t
+            per_game
         GROUP BY
-            t.ReleaseYear
-    ) AS ya ON YEAR (pg.ReleaseDate) = ya.ReleaseYear
+            YEAR (ReleaseDate)
+    )
+SELECT
+    pg.Title,
+    YEAR (pg.ReleaseDate) AS ReleaseYear,
+    pg.ReviewCount,
+    ROUND(pg.RecommendationPct, 2) AS RecommendationPct,
+    ROUND(ya.AvgYearReviewCount, 2) AS AvgYearReviewCount,
+    ROUND(ya.AvgYearRecommendationPct, 2) AS AvgYearRecommendationPct
+FROM
+    per_game pg
+    JOIN year_averages ya ON YEAR (pg.ReleaseDate) = ya.ReleaseYear
 WHERE
     pg.ReviewCount > ya.AvgYearReviewCount
     AND pg.RecommendationPct < ya.AvgYearRecommendationPct
@@ -210,29 +182,8 @@ ORDER BY
     NumGames DESC;
 
 -- 6. How does price relate to popularity within each genre?
-SELECT
-    ca.GenreName,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under $10'
-        WHEN g.Price < 30 THEN '$10-$29.99'
-        WHEN g.Price < 60 THEN '$30-$59.99'
-        ELSE '$60+'
-    END AS PriceRange,
-    COUNT(DISTINCT g.GameID) AS NumGames,
-    ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
-    ROUND(
-        AVG(
-            CASE
-                WHEN gr.ReviewCount > 0 THEN gr.RecommendationPct
-            END
-        ),
-        2
-    ) AS AvgRecommendationPct
-FROM
-    Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN (
+WITH
+    game_review_stats AS (
         SELECT
             GameID,
             COUNT(*) AS ReviewCount,
@@ -246,16 +197,40 @@ FROM
             Review
         GROUP BY
             GameID
-    ) AS gr ON g.GameID = gr.GameID
+    ),
+    priced_games AS (
+        SELECT
+            GameID,
+            CASE
+                WHEN Price = 0 THEN 'Free'
+                WHEN Price < 10 THEN 'Under $10'
+                WHEN Price < 30 THEN '$10-$29.99'
+                WHEN Price < 60 THEN '$30-$59.99'
+                ELSE '$60+'
+            END AS PriceRange
+        FROM
+            Game
+    )
+SELECT
+    ca.GenreName,
+    pg.PriceRange,
+    COUNT(DISTINCT pg.GameID) AS NumGames,
+    ROUND(AVG(grs.ReviewCount), 2) AS AvgReviewsPerGame,
+    ROUND(
+        AVG(
+            CASE
+                WHEN grs.ReviewCount > 0 THEN grs.RecommendationPct
+            END
+        ),
+        2
+    ) AS AvgRecommendationPct
+FROM
+    priced_games pg
+    JOIN ClassifiedAs ca ON pg.GameID = ca.GameID
+    JOIN game_review_stats grs ON pg.GameID = grs.GameID
 GROUP BY
     ca.GenreName,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under $10'
-        WHEN g.Price < 30 THEN '$10-$29.99'
-        WHEN g.Price < 60 THEN '$30-$59.99'
-        ELSE '$60+'
-    END
+    pg.PriceRange
 ORDER BY
     ca.GenreName,
     AvgReviewsPerGame DESC;
@@ -361,15 +336,8 @@ ORDER BY
     ReviewCount DESC;
 
 -- 10. Which publishers release the largest number of popular games?
-SELECT
-    pb.PublisherName,
-    COUNT(DISTINCT g.GameID) AS NumPopularGames,
-    ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
-    ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
-FROM
-    Game g
-    JOIN PublishedBy pb ON g.GameID = pb.GameID
-    JOIN (
+WITH
+    game_review_stats AS (
         SELECT
             GameID,
             COUNT(*) AS ReviewCount,
@@ -383,9 +351,18 @@ FROM
             Review
         GROUP BY
             GameID
-    ) AS gr ON g.GameID = gr.GameID
+    )
+SELECT
+    pb.PublisherName,
+    COUNT(DISTINCT g.GameID) AS NumPopularGames,
+    ROUND(AVG(grs.ReviewCount), 2) AS AvgReviewsPerGame,
+    ROUND(AVG(grs.RecommendationPct), 2) AS AvgRecommendationPct
+FROM
+    Game g
+    JOIN PublishedBy pb ON g.GameID = pb.GameID
+    JOIN game_review_stats grs ON g.GameID = grs.GameID
 WHERE
-    gr.ReviewCount >= 20
+    grs.ReviewCount >= 20
 GROUP BY
     pb.PublisherName
 HAVING
@@ -423,22 +400,8 @@ ORDER BY
     RecommendationPct DESC;
 
 -- 12. What characteristics are most common among the top-reviewed games?
-SELECT
-    ca.GenreName,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under $10'
-        WHEN g.Price < 30 THEN '$10-$29.99'
-        WHEN g.Price < 60 THEN '$30-$59.99'
-        ELSE '$60+'
-    END AS PriceRange,
-    COUNT(DISTINCT g.GameID) AS NumTopGames,
-    ROUND(AVG(gr.ReviewCount), 2) AS AvgReviews,
-    ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
-FROM
-    Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN (
+WITH
+    game_review_stats AS (
         SELECT
             GameID,
             COUNT(*) AS ReviewCount,
@@ -452,35 +415,45 @@ FROM
             Review
         GROUP BY
             GameID
-    ) AS gr ON g.GameID = gr.GameID
-WHERE
-    g.GameID IN (
+    ),
+    top_games AS (
         SELECT
-            t.GameID
+            GameID
         FROM
-            (
-                SELECT
-                    GameID,
-                    COUNT(*) AS ReviewCount
-                FROM
-                    Review
-                GROUP BY
-                    GameID
-                ORDER BY
-                    ReviewCount DESC
-                LIMIT
-                    50
-            ) AS t
+            game_review_stats
+        ORDER BY
+            ReviewCount DESC
+        LIMIT
+            50
+    ),
+    priced_games AS (
+        SELECT
+            GameID,
+            CASE
+                WHEN Price = 0 THEN 'Free'
+                WHEN Price < 10 THEN 'Under $10'
+                WHEN Price < 30 THEN '$10-$29.99'
+                WHEN Price < 60 THEN '$30-$59.99'
+                ELSE '$60+'
+            END AS PriceRange
+        FROM
+            Game
     )
+SELECT
+    ca.GenreName,
+    pg.PriceRange,
+    COUNT(DISTINCT g.GameID) AS NumTopGames,
+    ROUND(AVG(grs.ReviewCount), 2) AS AvgReviews,
+    ROUND(AVG(grs.RecommendationPct), 2) AS AvgRecommendationPct
+FROM
+    Game g
+    JOIN top_games tg ON g.GameID = tg.GameID
+    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
+    JOIN game_review_stats grs ON g.GameID = grs.GameID
+    JOIN priced_games pg ON g.GameID = pg.GameID
 GROUP BY
     ca.GenreName,
-    CASE
-        WHEN g.Price = 0 THEN 'Free'
-        WHEN g.Price < 10 THEN 'Under $10'
-        WHEN g.Price < 30 THEN '$10-$29.99'
-        WHEN g.Price < 60 THEN '$30-$59.99'
-        ELSE '$60+'
-    END
+    pg.PriceRange
 ORDER BY
     NumTopGames DESC,
     AvgRecommendationPct DESC;
@@ -510,6 +483,24 @@ ORDER BY
     AvgRecommendationPct DESC;
 
 -- 14. Which games released in the same year and genre show the largest differences in review count?
+WITH
+    game_review_counts AS (
+        SELECT
+            g.GameID,
+            g.Title,
+            YEAR (g.ReleaseDate) AS ReleaseYear,
+            ca.GenreName,
+            COUNT(r.ReviewID) AS ReviewCount
+        FROM
+            Game g
+            JOIN ClassifiedAs ca ON g.GameID = ca.GameID
+            JOIN Review r ON g.GameID = r.GameID
+        GROUP BY
+            g.GameID,
+            g.Title,
+            YEAR (g.ReleaseDate),
+            ca.GenreName
+    )
 SELECT
     a.ReleaseYear,
     a.GenreName,
@@ -519,40 +510,8 @@ SELECT
     b.ReviewCount AS LessReviewedCount,
     (a.ReviewCount - b.ReviewCount) AS ReviewCountGap
 FROM
-    (
-        SELECT
-            g.GameID,
-            g.Title,
-            YEAR (g.ReleaseDate) AS ReleaseYear,
-            ca.GenreName,
-            COUNT(r.ReviewID) AS ReviewCount
-        FROM
-            Game g
-            JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-            JOIN Review r ON g.GameID = r.GameID
-        GROUP BY
-            g.GameID,
-            g.Title,
-            YEAR (g.ReleaseDate),
-            ca.GenreName
-    ) AS a
-    JOIN (
-        SELECT
-            g.GameID,
-            g.Title,
-            YEAR (g.ReleaseDate) AS ReleaseYear,
-            ca.GenreName,
-            COUNT(r.ReviewID) AS ReviewCount
-        FROM
-            Game g
-            JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-            JOIN Review r ON g.GameID = r.GameID
-        GROUP BY
-            g.GameID,
-            g.Title,
-            YEAR (g.ReleaseDate),
-            ca.GenreName
-    ) AS b ON a.ReleaseYear = b.ReleaseYear
+    game_review_counts a
+    JOIN game_review_counts b ON a.ReleaseYear = b.ReleaseYear
     AND a.GenreName = b.GenreName
     AND a.GameID < b.GameID
 WHERE
@@ -564,99 +523,75 @@ ORDER BY
 LIMIT
     50;
 
--- 15. Which developers improved the most over time in recommendation rate and review count?
-SELECT
-    db.DeveloperName,
-    ROUND(
-        AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct
-            END
-        ),
-        2
-    ) AS FirstRecommendationPct,
-    ROUND(
-        AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.RecommendationPct
-            END
-        ),
-        2
-    ) AS LastRecommendationPct,
-    ROUND(
-        AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.RecommendationPct
-            END
-        ) - AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct
-            END
-        ),
-        2
-    ) AS RecommendationImprovement,
-    ROUND(
-        AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount
-            END
-        ),
-        2
-    ) AS FirstReviewCount,
-    ROUND(
-        AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.ReviewCount
-            END
-        ),
-        2
-    ) AS LastReviewCount,
-    ROUND(
-        AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.ReviewCount
-            END
-        ) - AVG(
-            CASE
-                WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount
-            END
-        ),
-        2
-    ) AS ReviewCountImprovement
-FROM
-    DevelopedBy db
-    JOIN Game g ON db.GameID = g.GameID
-    JOIN (
+-- 15. Which publisher-developer partnerships are associated with the strongest game performance?
+WITH
+    game_stats AS (
         SELECT
-            db2.DeveloperName,
-            MIN(g2.ReleaseDate) AS FirstReleaseDate,
-            MAX(g2.ReleaseDate) AS LastReleaseDate
-        FROM
-            DevelopedBy db2
-            JOIN Game g2 ON db2.GameID = g2.GameID
-        GROUP BY
-            db2.DeveloperName
-        HAVING
-            MIN(g2.ReleaseDate) < MAX(g2.ReleaseDate)
-    ) AS dev_bounds ON db.DeveloperName = dev_bounds.DeveloperName
-    JOIN (
-        SELECT
-            g3.GameID,
-            COUNT(r3.ReviewID) AS ReviewCount,
+            g.GameID,
+            COUNT(r.ReviewID) AS ReviewCount,
             AVG(
                 CASE
-                    WHEN r3.IsRecommended THEN 1
+                    WHEN r.IsRecommended THEN 1
                     ELSE 0
                 END
             ) * 100 AS RecommendationPct
         FROM
-            Game g3
-            JOIN Review r3 ON g3.GameID = r3.GameID
+            Game g
+            JOIN Review r ON g.GameID = r.GameID
         GROUP BY
-            g3.GameID
-    ) AS stats ON g.GameID = stats.GameID
+            g.GameID
+    )
+SELECT
+    pb.PublisherName,
+    db.DeveloperName,
+    COUNT(DISTINCT gs.GameID) AS NumGames,
+    ROUND(AVG(gs.ReviewCount), 2) AS AvgReviewCount,
+    ROUND(AVG(gs.RecommendationPct), 2) AS AvgRecommendationPct
+FROM
+    game_stats gs
+    JOIN PublishedBy pb ON gs.GameID = pb.GameID
+    JOIN DevelopedBy db ON gs.GameID = db.GameID
 GROUP BY
+    pb.PublisherName,
     db.DeveloperName
+HAVING
+    COUNT(DISTINCT gs.GameID) >= 2
 ORDER BY
-    RecommendationImprovement DESC,
-    ReviewCountImprovement DESC;
+    AvgRecommendationPct DESC,
+    AvgReviewCount DESC,
+    NumGames DESC;
+
+-- 15. Which features are associated with the highest average recommendation rates and review counts?
+WITH
+    game_stats AS (
+        SELECT
+            g.GameID,
+            COUNT(r.ReviewID) AS ReviewCount,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS RecommendationPct
+        FROM
+            Game g
+            JOIN Review r ON g.GameID = r.GameID
+        GROUP BY
+            g.GameID
+    )
+SELECT
+    hf.FeatureName,
+    COUNT(DISTINCT gs.GameID) AS NumGames,
+    ROUND(AVG(gs.ReviewCount), 2) AS AvgReviewCount,
+    ROUND(AVG(gs.RecommendationPct), 2) AS AvgRecommendationPct
+FROM
+    game_stats gs
+    JOIN HasFeatures hf ON gs.GameID = hf.GameID
+GROUP BY
+    hf.FeatureName
+HAVING
+    COUNT(DISTINCT gs.GameID) >= 5
+ORDER BY
+    AvgRecommendationPct DESC,
+    AvgReviewCount DESC,
+    NumGames DESC;
