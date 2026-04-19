@@ -148,9 +148,9 @@ export const queryCatalog: QueryDefinition[] = [
     {
         id: 'q15',
         number: 15,
-        title: 'Developer Improvement Over Time',
-        summary: 'Measure how recommendation rate and review count change from a developer’s early to late releases.',
+        title: 'Top Features by Performance',
+        summary: 'Rank features by average recommendation rate and review volume across featured games.',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 20 }],
-        chart: { labelColumns: ['DeveloperName'], valueColumns: ['RecommendationImprovement', 'ReviewCountImprovement'], type: 'bar' },
+        chart: { labelColumns: ['FeatureName'], valueColumns: ['AvgRecommendationPct', 'AvgReviewCount'], type: 'bar' },
     },
 ];

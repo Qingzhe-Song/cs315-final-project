@@ -27,7 +27,12 @@ BEGIN
         COUNT(DISTINCT g.GameID) AS NumGames,
         COUNT(r.ReviewID) AS NumReviews,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS AvgRecommendationPct
     FROM Game g
@@ -46,19 +51,25 @@ CREATE PROCEDURE sp_query_q2(
     IN p_limit_rows INT
 )
 BEGIN
-    SELECT
-        pb.PublisherName,
-        COUNT(*) AS NumHighPerformingGames
-    FROM (
+    WITH high_perf AS (
         SELECT
             g.GameID
         FROM Game g
         JOIN Review r ON g.GameID = r.GameID
         GROUP BY g.GameID
         HAVING COUNT(r.ReviewID) >= p_min_reviews
-           AND AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) >= (p_min_recommendation_pct / 100)
-    ) AS high_perf
-    JOIN PublishedBy pb ON high_perf.GameID = pb.GameID
+           AND AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+           ) >= (p_min_recommendation_pct / 100)
+    )
+    SELECT
+        pb.PublisherName,
+        COUNT(*) AS NumHighPerformingGames
+    FROM high_perf hp
+    JOIN PublishedBy pb ON hp.GameID = pb.GameID
     GROUP BY pb.PublisherName
     ORDER BY NumHighPerformingGames DESC, pb.PublisherName
     LIMIT p_limit_rows;
@@ -68,51 +79,39 @@ CREATE PROCEDURE sp_query_q3(
     IN p_limit_rows INT
 )
 BEGIN
-    SELECT
-        yearly.YearReleased,
-        yearly.GenreName,
-        ROUND(yearly.AvgReviewsPerGame, 2) AS AvgReviewsPerGame
-    FROM (
+    WITH review_counts AS (
+        SELECT
+            GameID,
+            COUNT(*) AS ReviewCount
+        FROM Review
+        GROUP BY GameID
+    ),
+    yearly AS (
         SELECT
             YEAR(g.ReleaseDate) AS YearReleased,
             ca.GenreName,
-            AVG(gr.ReviewCount) AS AvgReviewsPerGame
+            AVG(rc.ReviewCount) AS AvgReviewsPerGame
         FROM Game g
         JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-        JOIN (
-            SELECT
-                GameID,
-                COUNT(*) AS ReviewCount
-            FROM Review
-            GROUP BY GameID
-        ) AS gr ON g.GameID = gr.GameID
+        JOIN review_counts rc ON g.GameID = rc.GameID
         GROUP BY YEAR(g.ReleaseDate), ca.GenreName
-    ) AS yearly
-    JOIN (
+    ),
+    best AS (
         SELECT
-            x.YearReleased,
-            MAX(x.AvgReviewsPerGame) AS MaxAvgReviewsPerGame
-        FROM (
-            SELECT
-                YEAR(g.ReleaseDate) AS YearReleased,
-                ca.GenreName,
-                AVG(gr.ReviewCount) AS AvgReviewsPerGame
-            FROM Game g
-            JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-            JOIN (
-                SELECT
-                    GameID,
-                    COUNT(*) AS ReviewCount
-                FROM Review
-                GROUP BY GameID
-            ) AS gr ON g.GameID = gr.GameID
-            GROUP BY YEAR(g.ReleaseDate), ca.GenreName
-        ) AS x
-        GROUP BY x.YearReleased
-    ) AS best
-        ON yearly.YearReleased = best.YearReleased
-       AND yearly.AvgReviewsPerGame = best.MaxAvgReviewsPerGame
-    ORDER BY yearly.YearReleased
+            YearReleased,
+            MAX(AvgReviewsPerGame) AS MaxAvgReviewsPerGame
+        FROM yearly
+        GROUP BY YearReleased
+    )
+    SELECT
+        y.YearReleased,
+        y.GenreName,
+        ROUND(y.AvgReviewsPerGame, 2) AS AvgReviewsPerGame
+    FROM yearly y
+    JOIN best b
+        ON y.YearReleased = b.YearReleased
+       AND y.AvgReviewsPerGame = b.MaxAvgReviewsPerGame
+    ORDER BY y.YearReleased
     LIMIT p_limit_rows;
 END $$
 
@@ -120,6 +119,30 @@ CREATE PROCEDURE sp_query_q4(
     IN p_limit_rows INT
 )
 BEGIN
+    WITH per_game AS (
+        SELECT
+            g.GameID,
+            g.Title,
+            g.ReleaseDate,
+            COUNT(r.ReviewID) AS ReviewCount,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS RecommendationPct
+        FROM Game g
+        JOIN Review r ON g.GameID = r.GameID
+        GROUP BY g.GameID, g.Title, g.ReleaseDate
+    ),
+    year_averages AS (
+        SELECT
+            YEAR(ReleaseDate) AS ReleaseYear,
+            AVG(ReviewCount) AS AvgYearReviewCount,
+            AVG(RecommendationPct) AS AvgYearRecommendationPct
+        FROM per_game
+        GROUP BY YEAR(ReleaseDate)
+    )
     SELECT
         pg.Title,
         YEAR(pg.ReleaseDate) AS ReleaseYear,
@@ -127,34 +150,8 @@ BEGIN
         ROUND(pg.RecommendationPct, 2) AS RecommendationPct,
         ROUND(ya.AvgYearReviewCount, 2) AS AvgYearReviewCount,
         ROUND(ya.AvgYearRecommendationPct, 2) AS AvgYearRecommendationPct
-    FROM (
-        SELECT
-            g.GameID,
-            g.Title,
-            g.ReleaseDate,
-            COUNT(r.ReviewID) AS ReviewCount,
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-        FROM Game g
-        JOIN Review r ON g.GameID = r.GameID
-        GROUP BY g.GameID, g.Title, g.ReleaseDate
-    ) AS pg
-    JOIN (
-        SELECT
-            t.ReleaseYear,
-            AVG(t.ReviewCount) AS AvgYearReviewCount,
-            AVG(t.RecommendationPct) AS AvgYearRecommendationPct
-        FROM (
-            SELECT
-                YEAR(g.ReleaseDate) AS ReleaseYear,
-                g.GameID,
-                COUNT(r.ReviewID) AS ReviewCount,
-                AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-            FROM Game g
-            JOIN Review r ON g.GameID = r.GameID
-            GROUP BY YEAR(g.ReleaseDate), g.GameID
-        ) AS t
-        GROUP BY t.ReleaseYear
-    ) AS ya ON YEAR(pg.ReleaseDate) = ya.ReleaseYear
+    FROM per_game pg
+    JOIN year_averages ya ON YEAR(pg.ReleaseDate) = ya.ReleaseYear
     WHERE pg.ReviewCount > ya.AvgYearReviewCount
       AND pg.RecommendationPct < ya.AvgYearRecommendationPct
     ORDER BY pg.ReviewCount DESC, pg.RecommendationPct ASC
@@ -174,7 +171,12 @@ BEGIN
         COUNT(DISTINCT g.GameID) AS NumGames,
         COUNT(r.ReviewID) AS NumReviews,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS AvgRecommendationPct
     FROM DevelopedBy db
@@ -193,42 +195,48 @@ CREATE PROCEDURE sp_query_q6(
     IN p_limit_rows INT
 )
 BEGIN
-    SELECT
-        ca.GenreName,
-        CASE
-            WHEN g.Price = 0 THEN 'Free'
-            WHEN g.Price < 10 THEN 'Under $10'
-            WHEN g.Price < 30 THEN '$10-$29.99'
-            WHEN g.Price < 60 THEN '$30-$59.99'
-            ELSE '$60+'
-        END AS PriceRange,
-        COUNT(DISTINCT g.GameID) AS NumGames,
-        ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
-        ROUND(
-            AVG(
-                CASE WHEN gr.ReviewCount > 0 THEN gr.RecommendationPct END
-            ),
-            2
-        ) AS AvgRecommendationPct
-    FROM Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN (
+    WITH game_review_stats AS (
         SELECT
             GameID,
             COUNT(*) AS ReviewCount,
-            AVG(CASE WHEN IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
+            AVG(
+                CASE
+                    WHEN IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS RecommendationPct
         FROM Review
         GROUP BY GameID
-    ) AS gr ON g.GameID = gr.GameID
-    GROUP BY
+    ),
+    priced_games AS (
+        SELECT
+            GameID,
+            CASE
+                WHEN Price = 0 THEN 'Free'
+                WHEN Price < 10 THEN 'Under $10'
+                WHEN Price < 30 THEN '$10-$29.99'
+                WHEN Price < 60 THEN '$30-$59.99'
+                ELSE '$60+'
+            END AS PriceRange
+        FROM Game
+    )
+    SELECT
         ca.GenreName,
-        CASE
-            WHEN g.Price = 0 THEN 'Free'
-            WHEN g.Price < 10 THEN 'Under $10'
-            WHEN g.Price < 30 THEN '$10-$29.99'
-            WHEN g.Price < 60 THEN '$30-$59.99'
-            ELSE '$60+'
-        END
+        pg.PriceRange,
+        COUNT(DISTINCT pg.GameID) AS NumGames,
+        ROUND(AVG(grs.ReviewCount), 2) AS AvgReviewsPerGame,
+        ROUND(
+            AVG(
+                CASE
+                    WHEN grs.ReviewCount > 0 THEN grs.RecommendationPct
+                END
+            ),
+            2
+        ) AS AvgRecommendationPct
+    FROM priced_games pg
+    JOIN ClassifiedAs ca ON pg.GameID = ca.GameID
+    JOIN game_review_stats grs ON pg.GameID = grs.GameID
+    GROUP BY ca.GenreName, pg.PriceRange
     ORDER BY ca.GenreName, AvgReviewsPerGame DESC
     LIMIT p_limit_rows;
 END $$
@@ -244,13 +252,19 @@ BEGIN
         COUNT(DISTINCT g.GameID) AS NumReleasedGames,
         COUNT(r.ReviewID) AS TotalReviews,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS AvgRecommendationPct
     FROM Game g
     JOIN ClassifiedAs ca ON g.GameID = ca.GameID
     LEFT JOIN Review r ON g.GameID = r.GameID
-    WHERE (p_genre_keyword = '' OR ca.GenreName LIKE CONCAT('%', p_genre_keyword, '%'))
+    WHERE p_genre_keyword = ''
+       OR ca.GenreName LIKE CONCAT('%', p_genre_keyword, '%')
     GROUP BY YEAR(g.ReleaseDate), ca.GenreName
     ORDER BY ca.GenreName, ReleaseYear
     LIMIT p_limit_rows;
@@ -269,7 +283,12 @@ BEGIN
         ROUND(AVG(r.HelpfulVotes), 2) AS AvgHelpfulVotes,
         ROUND(AVG(r.HoursPlayed), 2) AS AvgHoursPlayed,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS AvgRecommendationPct
     FROM Game g
@@ -292,12 +311,22 @@ BEGIN
         g.Title,
         COUNT(r.ReviewID) AS ReviewCount,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS RecommendationPct,
         ROUND(
             COUNT(r.ReviewID) * (
-                1 - AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END)
+                1 - AVG(
+                    CASE
+                        WHEN r.IsRecommended THEN 1
+                        ELSE 0
+                    END
+                )
             ),
             2
         ) AS MismatchScore
@@ -305,7 +334,12 @@ BEGIN
     JOIN Review r ON g.GameID = r.GameID
     GROUP BY g.GameID, g.Title
     HAVING COUNT(r.ReviewID) >= p_min_reviews
-       AND AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) < 0.30
+       AND AVG(
+            CASE
+                WHEN r.IsRecommended THEN 1
+                ELSE 0
+            END
+       ) < 0.30
     ORDER BY MismatchScore DESC, ReviewCount DESC
     LIMIT p_limit_rows;
 END $$
@@ -315,22 +349,28 @@ CREATE PROCEDURE sp_query_q10(
     IN p_limit_rows INT
 )
 BEGIN
-    SELECT
-        pb.PublisherName,
-        COUNT(DISTINCT g.GameID) AS NumPopularGames,
-        ROUND(AVG(gr.ReviewCount), 2) AS AvgReviewsPerGame,
-        ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
-    FROM Game g
-    JOIN PublishedBy pb ON g.GameID = pb.GameID
-    JOIN (
+    WITH game_review_stats AS (
         SELECT
             GameID,
             COUNT(*) AS ReviewCount,
-            AVG(CASE WHEN IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
+            AVG(
+                CASE
+                    WHEN IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS RecommendationPct
         FROM Review
         GROUP BY GameID
-    ) AS gr ON g.GameID = gr.GameID
-    WHERE gr.ReviewCount >= p_min_reviews
+    )
+    SELECT
+        pb.PublisherName,
+        COUNT(DISTINCT g.GameID) AS NumPopularGames,
+        ROUND(AVG(grs.ReviewCount), 2) AS AvgReviewsPerGame,
+        ROUND(AVG(grs.RecommendationPct), 2) AS AvgRecommendationPct
+    FROM Game g
+    JOIN PublishedBy pb ON g.GameID = pb.GameID
+    JOIN game_review_stats grs ON g.GameID = grs.GameID
+    WHERE grs.ReviewCount >= p_min_reviews
     GROUP BY pb.PublisherName
     HAVING COUNT(DISTINCT g.GameID) >= 5
     ORDER BY NumPopularGames DESC, AvgRecommendationPct DESC
@@ -347,7 +387,12 @@ BEGIN
         COUNT(DISTINCT s.PlatformName) AS NumPlatforms,
         COUNT(r.ReviewID) AS ReviewCount,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS RecommendationPct
     FROM Game g
@@ -364,50 +409,50 @@ CREATE PROCEDURE sp_query_q12(
     IN p_limit_rows INT
 )
 BEGIN
-    SELECT
-        ca.GenreName,
-        CASE
-            WHEN g.Price = 0 THEN 'Free'
-            WHEN g.Price < 10 THEN 'Under $10'
-            WHEN g.Price < 30 THEN '$10-$29.99'
-            WHEN g.Price < 60 THEN '$30-$59.99'
-            ELSE '$60+'
-        END AS PriceRange,
-        COUNT(DISTINCT g.GameID) AS NumTopGames,
-        ROUND(AVG(gr.ReviewCount), 2) AS AvgReviews,
-        ROUND(AVG(gr.RecommendationPct), 2) AS AvgRecommendationPct
-    FROM Game g
-    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-    JOIN (
+    WITH game_review_stats AS (
         SELECT
             GameID,
             COUNT(*) AS ReviewCount,
-            AVG(CASE WHEN IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
+            AVG(
+                CASE
+                    WHEN IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS RecommendationPct
         FROM Review
         GROUP BY GameID
-    ) AS gr ON g.GameID = gr.GameID
-    WHERE g.GameID IN (
+    ),
+    top_games AS (
         SELECT
-            t.GameID
-        FROM (
-            SELECT
-                GameID,
-                COUNT(*) AS ReviewCount
-            FROM Review
-            GROUP BY GameID
-            ORDER BY ReviewCount DESC
-            LIMIT p_top_limit
-        ) AS t
+            GameID
+        FROM game_review_stats
+        ORDER BY ReviewCount DESC
+        LIMIT p_top_limit
+    ),
+    priced_games AS (
+        SELECT
+            GameID,
+            CASE
+                WHEN Price = 0 THEN 'Free'
+                WHEN Price < 10 THEN 'Under $10'
+                WHEN Price < 30 THEN '$10-$29.99'
+                WHEN Price < 60 THEN '$30-$59.99'
+                ELSE '$60+'
+            END AS PriceRange
+        FROM Game
     )
-    GROUP BY
+    SELECT
         ca.GenreName,
-        CASE
-            WHEN g.Price = 0 THEN 'Free'
-            WHEN g.Price < 10 THEN 'Under $10'
-            WHEN g.Price < 30 THEN '$10-$29.99'
-            WHEN g.Price < 60 THEN '$30-$59.99'
-            ELSE '$60+'
-        END
+        pg.PriceRange,
+        COUNT(DISTINCT g.GameID) AS NumTopGames,
+        ROUND(AVG(grs.ReviewCount), 2) AS AvgReviews,
+        ROUND(AVG(grs.RecommendationPct), 2) AS AvgRecommendationPct
+    FROM Game g
+    JOIN top_games tg ON g.GameID = tg.GameID
+    JOIN ClassifiedAs ca ON g.GameID = ca.GameID
+    JOIN game_review_stats grs ON g.GameID = grs.GameID
+    JOIN priced_games pg ON g.GameID = pg.GameID
+    GROUP BY ca.GenreName, pg.PriceRange
     ORDER BY NumTopGames DESC, AvgRecommendationPct DESC
     LIMIT p_limit_rows;
 END $$
@@ -422,7 +467,12 @@ BEGIN
         COUNT(r.ReviewID) AS NumReviews,
         ROUND(COUNT(r.ReviewID) / COUNT(DISTINCT g.GameID), 2) AS AvgReviewsPerGame,
         ROUND(
-            AVG(CASE WHEN r.IsRecommended THEN 1 ELSE 0 END) * 100,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100,
             2
         ) AS AvgRecommendationPct
     FROM Game g
@@ -436,6 +486,18 @@ CREATE PROCEDURE sp_query_q14(
     IN p_limit_rows INT
 )
 BEGIN
+    WITH game_review_counts AS (
+        SELECT
+            g.GameID,
+            g.Title,
+            YEAR(g.ReleaseDate) AS ReleaseYear,
+            ca.GenreName,
+            COUNT(r.ReviewID) AS ReviewCount
+        FROM Game g
+        JOIN ClassifiedAs ca ON g.GameID = ca.GameID
+        JOIN Review r ON g.GameID = r.GameID
+        GROUP BY g.GameID, g.Title, YEAR(g.ReleaseDate), ca.GenreName
+    )
     SELECT
         a.ReleaseYear,
         a.GenreName,
@@ -444,30 +506,8 @@ BEGIN
         a.ReviewCount AS MoreReviewedCount,
         b.ReviewCount AS LessReviewedCount,
         (a.ReviewCount - b.ReviewCount) AS ReviewCountGap
-    FROM (
-        SELECT
-            g.GameID,
-            g.Title,
-            YEAR(g.ReleaseDate) AS ReleaseYear,
-            ca.GenreName,
-            COUNT(r.ReviewID) AS ReviewCount
-        FROM Game g
-        JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-        JOIN Review r ON g.GameID = r.GameID
-        GROUP BY g.GameID, g.Title, YEAR(g.ReleaseDate), ca.GenreName
-    ) AS a
-    JOIN (
-        SELECT
-            g.GameID,
-            g.Title,
-            YEAR(g.ReleaseDate) AS ReleaseYear,
-            ca.GenreName,
-            COUNT(r.ReviewID) AS ReviewCount
-        FROM Game g
-        JOIN ClassifiedAs ca ON g.GameID = ca.GameID
-        JOIN Review r ON g.GameID = r.GameID
-        GROUP BY g.GameID, g.Title, YEAR(g.ReleaseDate), ca.GenreName
-    ) AS b
+    FROM game_review_counts a
+    JOIN game_review_counts b
         ON a.ReleaseYear = b.ReleaseYear
        AND a.GenreName = b.GenreName
        AND a.GameID < b.GameID
@@ -480,57 +520,30 @@ CREATE PROCEDURE sp_query_q15(
     IN p_limit_rows INT
 )
 BEGIN
+    WITH game_stats AS (
+        SELECT
+            g.GameID,
+            COUNT(r.ReviewID) AS ReviewCount,
+            AVG(
+                CASE
+                    WHEN r.IsRecommended THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS RecommendationPct
+        FROM Game g
+        JOIN Review r ON g.GameID = r.GameID
+        GROUP BY g.GameID
+    )
     SELECT
-        db.DeveloperName,
-        ROUND(
-            AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct END),
-            2
-        ) AS FirstRecommendationPct,
-        ROUND(
-            AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.RecommendationPct END),
-            2
-        ) AS LastRecommendationPct,
-        ROUND(
-            AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.RecommendationPct END)
-            - AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.RecommendationPct END),
-            2
-        ) AS RecommendationImprovement,
-        ROUND(
-            AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount END),
-            2
-        ) AS FirstReviewCount,
-        ROUND(
-            AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.ReviewCount END),
-            2
-        ) AS LastReviewCount,
-        ROUND(
-            AVG(CASE WHEN g.ReleaseDate = dev_bounds.LastReleaseDate THEN stats.ReviewCount END)
-            - AVG(CASE WHEN g.ReleaseDate = dev_bounds.FirstReleaseDate THEN stats.ReviewCount END),
-            2
-        ) AS ReviewCountImprovement
-    FROM DevelopedBy db
-    JOIN Game g ON db.GameID = g.GameID
-    JOIN (
-        SELECT
-            db2.DeveloperName,
-            MIN(g2.ReleaseDate) AS FirstReleaseDate,
-            MAX(g2.ReleaseDate) AS LastReleaseDate
-        FROM DevelopedBy db2
-        JOIN Game g2 ON db2.GameID = g2.GameID
-        GROUP BY db2.DeveloperName
-        HAVING MIN(g2.ReleaseDate) < MAX(g2.ReleaseDate)
-    ) AS dev_bounds ON db.DeveloperName = dev_bounds.DeveloperName
-    JOIN (
-        SELECT
-            g3.GameID,
-            COUNT(r3.ReviewID) AS ReviewCount,
-            AVG(CASE WHEN r3.IsRecommended THEN 1 ELSE 0 END) * 100 AS RecommendationPct
-        FROM Game g3
-        JOIN Review r3 ON g3.GameID = r3.GameID
-        GROUP BY g3.GameID
-    ) AS stats ON g.GameID = stats.GameID
-    GROUP BY db.DeveloperName
-    ORDER BY RecommendationImprovement DESC, ReviewCountImprovement DESC
+        hf.FeatureName,
+        COUNT(DISTINCT gs.GameID) AS NumGames,
+        ROUND(AVG(gs.ReviewCount), 2) AS AvgReviewCount,
+        ROUND(AVG(gs.RecommendationPct), 2) AS AvgRecommendationPct
+    FROM game_stats gs
+    JOIN HasFeatures hf ON gs.GameID = hf.GameID
+    GROUP BY hf.FeatureName
+    HAVING COUNT(DISTINCT gs.GameID) >= 5
+    ORDER BY AvgRecommendationPct DESC, AvgReviewCount DESC, NumGames DESC
     LIMIT p_limit_rows;
 END $$
 
