@@ -5,7 +5,6 @@ CREATE TABLE Publisher (
 
 CREATE TABLE Developer (
     DeveloperName VARCHAR(100),
-    DeveloperType VARCHAR(100),
     PRIMARY KEY (DeveloperName)
 );
 

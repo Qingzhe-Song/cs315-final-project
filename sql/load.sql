@@ -12,8 +12,7 @@ FIELDS TERMINATED BY ','
 OPTIONALLY ENCLOSED BY '"'
 LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
-(DeveloperName, @DeveloperType)
-SET DeveloperType = NULLIF(@DeveloperType, '');
+(DeveloperName);
 
 LOAD DATA LOCAL INFILE 'clean/Platform.csv'
 INTO TABLE Platform
