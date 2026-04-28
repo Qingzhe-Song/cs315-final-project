@@ -11,7 +11,12 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'min_reviews', label: 'Minimum Reviews per Genre', type: 'number', default: 10 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 15 },
         ],
-        chart: { labelColumns: ['GenreName'], valueColumns: ['AvgRecommendationPct'], type: 'bar' },
+        chart: {
+            type: 'bar',
+            labelColumns: ['GenreName'],
+            valueColumns: ['AvgRecommendationPct'],
+            indexAxis: 'y',
+        },
     },
     {
         id: 'q2',
@@ -23,7 +28,12 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'min_recommendation_pct', label: 'Minimum Recommendation %', type: 'number', default: 80 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 15 },
         ],
-        chart: { labelColumns: ['PublisherName'], valueColumns: ['NumHighPerformingGames'], type: 'bar' },
+        chart: {
+            type: 'bar',
+            labelColumns: ['PublisherName'],
+            valueColumns: ['NumHighPerformingGames'],
+            indexAxis: 'y',
+        },
     },
     {
         id: 'q3',
@@ -31,7 +41,11 @@ export const queryCatalog: QueryDefinition[] = [
         title: 'Best Genre by Release Year',
         summary: 'For each release year, which genre had the highest average review count per game?',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 30 }],
-        chart: { labelColumns: ['YearReleased', 'GenreName'], valueColumns: ['AvgReviewsPerGame'], type: 'bar' },
+        chart: {
+            type: 'line',
+            labelColumns: ['YearReleased', 'GenreName'],
+            valueColumns: ['AvgReviewsPerGame'],
+        },
     },
     {
         id: 'q4',
@@ -39,7 +53,12 @@ export const queryCatalog: QueryDefinition[] = [
         title: 'Popular but Below Average Sentiment',
         summary: 'Which games have unusually high review counts despite having below-average recommendation rates compared with other games released in the same year?',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 20 }],
-        chart: { labelColumns: ['Title'], valueColumns: ['ReviewCount', 'RecommendationPct'], type: 'bar' },
+        chart: {
+            type: 'scatter',
+            labelColumns: ['Title'],
+            xColumn: 'RecommendationPct',
+            yColumn: 'ReviewCount',
+        },
     },
     {
         id: 'q5',
@@ -52,7 +71,13 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'min_reviews', label: 'Minimum Reviews', type: 'number', default: 20 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 20 },
         ],
-        chart: { labelColumns: ['DeveloperName'], valueColumns: ['AvgRecommendationPct'], type: 'bar' },
+        chart: {
+            type: 'bubble',
+            labelColumns: ['DeveloperName'],
+            xColumn: 'NumGenres',
+            yColumn: 'AvgRecommendationPct',
+            radiusColumn: 'NumGames',
+        },
     },
     {
         id: 'q6',
@@ -60,7 +85,13 @@ export const queryCatalog: QueryDefinition[] = [
         title: 'Price vs Popularity by Genre',
         summary: 'How does price relate to popularity within each genre?',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 30 }],
-        chart: { labelColumns: ['GenreName', 'PriceRange'], valueColumns: ['AvgReviewsPerGame'], type: 'bar' },
+        chart: {
+            type: 'bar',
+            xColumn: 'PriceRange',
+            yColumn: 'AvgReviewsPerGame',
+            seriesColumn: 'GenreName',
+            categoryOrder: ['Free', 'Under $10', '$10-$29.99', '$30-$59.99', '$60+'],
+        },
     },
     {
         id: 'q7',
@@ -71,7 +102,12 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'genre_keyword', label: 'Optional Genre Keyword', type: 'text', default: '' },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 40 },
         ],
-        chart: { labelColumns: ['ReleaseYear', 'GenreName'], valueColumns: ['TotalReviews'], type: 'bar' },
+        chart: {
+            type: 'line',
+            xColumn: 'ReleaseYear',
+            yColumn: 'TotalReviews',
+            seriesColumn: 'GenreName',
+        },
     },
     {
         id: 'q8',
@@ -83,7 +119,13 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'feature_keyword', label: 'Feature Keyword', type: 'text', default: 'multi' },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 20 },
         ],
-        chart: { labelColumns: ['TagName'], valueColumns: ['AvgHelpfulVotes', 'AvgHoursPlayed'], type: 'bar' },
+        chart: {
+            type: 'bubble',
+            labelColumns: ['TagName'],
+            xColumn: 'AvgHoursPlayed',
+            yColumn: 'AvgHelpfulVotes',
+            radiusColumn: 'NumReviews',
+        },
     },
     {
         id: 'q9',
@@ -94,7 +136,13 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'min_reviews', label: 'Minimum Reviews per Game', type: 'number', default: 20 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 20 },
         ],
-        chart: { labelColumns: ['Title'], valueColumns: ['MismatchScore'], type: 'bar' },
+        chart: {
+            type: 'bubble',
+            labelColumns: ['Title'],
+            xColumn: 'RecommendationPct',
+            yColumn: 'ReviewCount',
+            radiusColumn: 'MismatchScore',
+        },
     },
     {
         id: 'q10',
@@ -105,7 +153,13 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'min_reviews', label: 'Minimum Reviews per Game', type: 'number', default: 20 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 20 },
         ],
-        chart: { labelColumns: ['PublisherName'], valueColumns: ['NumPopularGames'], type: 'bar' },
+        chart: {
+            type: 'bubble',
+            labelColumns: ['PublisherName'],
+            xColumn: 'NumPopularGames',
+            yColumn: 'AvgRecommendationPct',
+            radiusColumn: 'AvgReviewsPerGame',
+        },
     },
     {
         id: 'q11',
@@ -116,7 +170,13 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'min_platforms', label: 'Minimum Supported Platforms', type: 'number', default: 2 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 20 },
         ],
-        chart: { labelColumns: ['Title'], valueColumns: ['ReviewCount', 'RecommendationPct'], type: 'bar' },
+        chart: {
+            type: 'bubble',
+            labelColumns: ['Title'],
+            xColumn: 'NumPlatforms',
+            yColumn: 'ReviewCount',
+            radiusColumn: 'RecommendationPct',
+        },
     },
     {
         id: 'q12',
@@ -127,7 +187,11 @@ export const queryCatalog: QueryDefinition[] = [
             { name: 'top_limit', label: 'How Many Top-Reviewed Games', type: 'number', default: 50 },
             { name: 'limit', label: 'Rows to Show', type: 'number', default: 25 },
         ],
-        chart: { labelColumns: ['GenreName', 'PriceRange'], valueColumns: ['NumTopGames'], type: 'bar' },
+        chart: {
+            type: 'doughnut',
+            labelColumns: ['GenreName', 'PriceRange'],
+            valueColumns: ['NumTopGames'],
+        },
     },
     {
         id: 'q13',
@@ -135,7 +199,13 @@ export const queryCatalog: QueryDefinition[] = [
         title: 'Best Release Months',
         summary: 'Which release months are associated with the highest average review counts and recommendation rates?',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 12 }],
-        chart: { labelColumns: ['ReleaseMonth'], valueColumns: ['AvgReviewsPerGame', 'AvgRecommendationPct'], type: 'bar' },
+        chart: {
+            type: 'line',
+            labelColumns: ['ReleaseMonth'],
+            valueColumns: ['AvgReviewsPerGame', 'AvgRecommendationPct'],
+            categoryOrder: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+            rightAxisColumns: ['AvgRecommendationPct'],
+        },
     },
     {
         id: 'q14',
@@ -143,7 +213,12 @@ export const queryCatalog: QueryDefinition[] = [
         title: 'Largest Review-Count Gaps',
         summary: 'Which games released in the same year and genre show the largest differences in review count?',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 50 }],
-        chart: { labelColumns: ['ReleaseYear', 'GenreName'], valueColumns: ['ReviewCountGap'], type: 'bar' },
+        chart: {
+            type: 'bar',
+            labelColumns: ['ReleaseYear', 'GenreName', 'MoreReviewedGame', 'LessReviewedGame'],
+            valueColumns: ['ReviewCountGap'],
+            indexAxis: 'y',
+        },
     },
     {
         id: 'q15',
@@ -151,6 +226,12 @@ export const queryCatalog: QueryDefinition[] = [
         title: 'Top Features by Performance',
         summary: 'Which features are associated with the highest average recommendation rates and review counts?',
         inputs: [{ name: 'limit', label: 'Rows to Show', type: 'number', default: 20 }],
-        chart: { labelColumns: ['FeatureName'], valueColumns: ['AvgRecommendationPct', 'AvgReviewCount'], type: 'bar' },
+        chart: {
+            type: 'bubble',
+            labelColumns: ['FeatureName'],
+            xColumn: 'AvgRecommendationPct',
+            yColumn: 'AvgReviewCount',
+            radiusColumn: 'NumGames',
+        },
     },
 ];

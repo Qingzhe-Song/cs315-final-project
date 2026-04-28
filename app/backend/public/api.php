@@ -25,7 +25,10 @@ function read_json_request()
     $payload = json_decode($rawBody, true);
 
     if (!is_array($payload)) {
-        throw new RuntimeException('Request body must be valid JSON.');
+        send_json(400, [
+            'error' => 'Request failed.',
+            'details' => 'Request body must be valid JSON.',
+        ]);
     }
 
     return $payload;
@@ -40,40 +43,32 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-try {
-    require_once __DIR__ . '/../config/mysql.inc.php';
-    require_once __DIR__ . '/../src/query_library.php';
+require_once __DIR__ . '/../config/mysql.inc.php';
+require_once __DIR__ . '/../src/query_library.php';
 
-    $action = $_GET['action'] ?? 'run';
+$action = $_GET['action'] ?? 'run';
 
-    if (!in_array($action, ['run', 'custom'], true)) {
-        throw new InvalidArgumentException('Unsupported action.');
-    }
-
-    $payload = read_json_request();
-    $params = [];
-
-    if (isset($payload['params']) && is_array($payload['params'])) {
-        $params = $payload['params'];
-    }
-
-    if ($action === 'custom') {
-        $result = execute_custom_query($db, $params);
-    } else {
-        $queryId = isset($payload['queryId']) ? (string) $payload['queryId'] : '';
-        $result = execute_query($db, $queryId, $params);
-    }
-
-    $db->close();
-
-    send_json(200, $result);
-} catch (Throwable $error) {
-    if (isset($db) && $db instanceof mysqli) {
-        $db->close();
-    }
-
+if (!in_array($action, ['run', 'custom'], true)) {
     send_json(400, [
         'error' => 'Request failed.',
-        'details' => $error->getMessage(),
+        'details' => 'Unsupported action.',
     ]);
 }
+
+$payload = read_json_request();
+$params = [];
+
+if (isset($payload['params']) && is_array($payload['params'])) {
+    $params = $payload['params'];
+}
+
+if ($action === 'custom') {
+    $result = execute_custom_query($db, $params);
+} else {
+    $queryId = isset($payload['queryId']) ? (string) $payload['queryId'] : '';
+    $result = execute_query($db, $queryId, $params);
+}
+
+$db->close();
+
+send_json(200, $result);

@@ -3,12 +3,9 @@ import { atom, computed } from 'nanostores';
 import { apiUrl, fetchJson } from '@/lib/api';
 import { queryCatalog } from '@/lib/query-catalog';
 import { defaultFormValues } from '@/lib/query-results';
-import type { QueryDefinition, QueryExecutionResponse, QueryMode, QueryResult } from '@/types';
+import type { QueryDefinition, QueryExecutionResponse, QueryMode, QueryResult, QueryStatus } from '@/types';
 
 const DEFAULT_APP_TITLE = 'Steam Discovery Dashboard';
-const READY_STATUS_TEXT = 'Parameters ready.';
-const CUSTOM_READY_STATUS_TEXT = 'Filters ready.';
-const REQUEST_FAILED_STATUS_TEXT = 'Request failed.';
 const NO_QUERY_STATUS_TEXT = 'No query available.';
 const CUSTOM_QUERY_DEFINITION: QueryDefinition = {
     id: 'custom',
@@ -16,7 +13,12 @@ const CUSTOM_QUERY_DEFINITION: QueryDefinition = {
     title: 'Custom Filtered Games',
     summary: 'Build a simple game search by filtering title, genre, release year, price, and review count.',
     inputs: [],
-    chart: { labelColumns: ['Title'], valueColumns: ['ReviewCount', 'RecommendationPct'], type: 'bar' },
+    chart: {
+        type: 'bar',
+        labelColumns: ['Title'],
+        valueColumns: ['ReviewCount', 'RecommendationPct'],
+        indexAxis: 'y',
+    },
 };
 const DEFAULT_CUSTOM_FORM_VALUES = {
     title_keyword: '',
@@ -35,7 +37,8 @@ export const $selectedQueryId = atom('');
 export const $formValues = atom<Record<string, string>>({});
 export const $customFormValues = atom<Record<string, string>>(DEFAULT_CUSTOM_FORM_VALUES);
 export const $latestResult = atom<QueryResult | null>(null);
-export const $statusText = atom(READY_STATUS_TEXT);
+export const $queryStatus = atom<QueryStatus>('ready');
+export const $statusText = computed($queryStatus, (queryStatus) => `${queryStatus[0].toUpperCase()}${queryStatus.slice(1)}`);
 export const $isRunning = atom(false);
 export const $showVisualization = atom(false);
 
@@ -78,7 +81,7 @@ export const $tableSummary = computed(
         }
 
         if (activeQuery) {
-            return 'Run a query to populate the result grid.';
+            return 'Run a query to populate the table.';
         }
 
         return NO_QUERY_STATUS_TEXT;
@@ -87,7 +90,7 @@ export const $tableSummary = computed(
 
 export const $chartCaption = computed($latestResult, (latestResult) => {
     if (latestResult) {
-        return 'Chart.js plots up to the first 12 rows returned from the database.';
+        return `Only first 12 rows are rendered.`;
     }
 
     return 'Run a query, review the table, then open the visualization if you need it.';
@@ -118,12 +121,12 @@ export const $tableFallbackMessage = computed($activeQuery, (activeQuery) => {
 
 let hasLoadedCatalog = false;
 
-function applySelection(query: QueryDefinition | null, statusText: string): void {
+function applySelection(query: QueryDefinition | null, queryStatus: QueryStatus): void {
     $selectedQueryId.set(query?.id ?? '');
     $formValues.set(query ? defaultFormValues(query) : {});
     $latestResult.set(null);
     $showVisualization.set(false);
-    $statusText.set(statusText);
+    $queryStatus.set(queryStatus);
 }
 
 export function setQueryMode(queryMode: QueryMode): void {
@@ -134,7 +137,7 @@ export function setQueryMode(queryMode: QueryMode): void {
     $queryMode.set(queryMode);
     $latestResult.set(null);
     $showVisualization.set(false);
-    $statusText.set(queryMode === 'custom' ? CUSTOM_READY_STATUS_TEXT : READY_STATUS_TEXT);
+    $queryStatus.set('ready');
 }
 
 export async function initializeApp(initialTitle: string): Promise<void> {
@@ -146,14 +149,14 @@ export async function initializeApp(initialTitle: string): Promise<void> {
 
     const selectedQuery = queryCatalog[0] ?? null;
     $catalog.set(queryCatalog);
-    applySelection(selectedQuery, selectedQuery ? READY_STATUS_TEXT : NO_QUERY_STATUS_TEXT);
+    applySelection(selectedQuery, selectedQuery ? 'ready' : 'error');
     hasLoadedCatalog = true;
 }
 
 export function selectQuery(queryId: string): void {
     $queryMode.set('preset');
     const selectedQuery = $catalog.get().find((query) => query.id === queryId) ?? null;
-    applySelection(selectedQuery, selectedQuery ? READY_STATUS_TEXT : NO_QUERY_STATUS_TEXT);
+    applySelection(selectedQuery, selectedQuery ? 'ready' : 'error');
 }
 
 export function updateFormValue(name: string, value: string): void {
@@ -174,14 +177,14 @@ export async function runSelectedQuery(): Promise<void> {
     const selectedQuery = $selectedQuery.get();
 
     if (!selectedQuery) {
-        $statusText.set(NO_QUERY_STATUS_TEXT);
+        $queryStatus.set('error');
         return;
     }
 
     $isRunning.set(true);
     $queryMode.set('preset');
     $showVisualization.set(false);
-    $statusText.set('Running query...');
+    $queryStatus.set('loading');
 
     try {
         const result = await fetchJson<QueryExecutionResponse>(apiUrl('run'), {
@@ -197,11 +200,11 @@ export async function runSelectedQuery(): Promise<void> {
             ...result,
             query: selectedQuery,
         });
-        $statusText.set('Query complete.');
+        $queryStatus.set('complete');
     } catch {
         $latestResult.set(null);
         $showVisualization.set(false);
-        $statusText.set(REQUEST_FAILED_STATUS_TEXT);
+        $queryStatus.set('error');
     } finally {
         $isRunning.set(false);
     }
@@ -211,7 +214,7 @@ export async function runCustomQuery(): Promise<void> {
     $isRunning.set(true);
     $queryMode.set('custom');
     $showVisualization.set(false);
-    $statusText.set('Running filtered query...');
+    $queryStatus.set('loading');
 
     try {
         const result = await fetchJson<QueryExecutionResponse>(apiUrl('custom'), {
@@ -226,11 +229,11 @@ export async function runCustomQuery(): Promise<void> {
             ...result,
             query: CUSTOM_QUERY_DEFINITION,
         });
-        $statusText.set('Query complete.');
+        $queryStatus.set('complete');
     } catch {
         $latestResult.set(null);
         $showVisualization.set(false);
-        $statusText.set(REQUEST_FAILED_STATUS_TEXT);
+        $queryStatus.set('error');
     } finally {
         $isRunning.set(false);
     }

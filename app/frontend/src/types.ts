@@ -1,4 +1,5 @@
 export type InputType = 'number' | 'text';
+export type QueryStatus = 'ready' | 'loading' | 'complete' | 'error';
 export type QueryMode = 'preset' | 'custom';
 export type RowValue = string | number | null;
 
@@ -10,9 +11,16 @@ export interface QueryInput {
 }
 
 export interface ChartConfig {
-    labelColumns: string[];
-    valueColumns: string[];
-    type: 'bar';
+    type: 'bar' | 'line' | 'scatter' | 'bubble' | 'doughnut';
+    labelColumns?: string[];
+    valueColumns?: string[];
+    xColumn?: string;
+    yColumn?: string;
+    radiusColumn?: string;
+    seriesColumn?: string;
+    indexAxis?: 'x' | 'y';
+    categoryOrder?: string[];
+    rightAxisColumns?: string[];
 }
 
 export interface QueryDefinition {
