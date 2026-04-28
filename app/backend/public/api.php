@@ -38,12 +38,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     exit;
 }
 
-require_once __DIR__ . '/../config/mysql.inc.php';
-require_once __DIR__ . '/../src/query_library.php';
-
 header('Content-Type: application/json; charset=utf-8');
 
 try {
+    require_once __DIR__ . '/../config/mysql.inc.php';
+    require_once __DIR__ . '/../src/query_library.php';
+
     $action = $_GET['action'] ?? 'run';
 
     if (!in_array($action, ['run', 'custom'], true)) {

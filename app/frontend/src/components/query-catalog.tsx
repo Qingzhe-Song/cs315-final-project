@@ -7,14 +7,13 @@ import { useQueryCatalogStore } from '@/hooks/use-query-explorer';
 
 function QueryCatalog(): JSX.Element {
     const { catalog, selectedQueryId, selectQuery } = useQueryCatalogStore();
-    const queryCountLabel = catalog.length === 1 ? '1 preset query' : `${catalog.length} preset queries`;
 
     return (
         <Card>
             <CardHeader className="gap-1">
                 <CardTitle className="text-2xl">Queries</CardTitle>
                 <CardDescription>
-                    Select one query from your preset list. {queryCountLabel}
+                    Select one query from preset list.
                 </CardDescription>
             </CardHeader>
             <CardContent>
