@@ -4,6 +4,7 @@ import {
     $appTitle,
     $catalog,
     $chartCaption,
+    $chartRowLimit,
     $chartEmptyMessage,
     $customFormValues,
     $formValues,
@@ -23,6 +24,7 @@ import {
     selectQuery,
     setQueryMode,
     toggleVisualization,
+    updateChartRowLimit,
     updateCustomFormValue,
     updateFormValue,
 } from '@/stores/query-explorer';
@@ -88,6 +90,7 @@ export function useResultsSectionStore() {
     const visibleRows = useStore($visibleRows);
     const visibleRowTotal = useStore($visibleRowTotal);
     const showVisualization = useStore($showVisualization);
+    const chartRowLimit = useStore($chartRowLimit);
     const tableSummary = useStore($tableSummary);
     const tableFallbackMessage = useStore($tableFallbackMessage);
     const chartCaption = useStore($chartCaption);
@@ -98,10 +101,12 @@ export function useResultsSectionStore() {
         visibleRows,
         visibleRowTotal,
         showVisualization,
+        chartRowLimit,
         tableSummary,
         tableFallbackMessage,
         chartCaption,
         chartEmptyMessage,
         toggleVisualization,
+        updateChartRowLimit,
     };
 }

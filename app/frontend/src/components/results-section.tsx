@@ -1,10 +1,12 @@
 import { BarChart3 } from 'lucide-react';
+import type { ChangeEvent } from 'react';
 import type { JSX } from 'react';
 
 import { ResultsChart } from '@/components/results-chart';
 import { ResultsTable } from '@/components/results-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { useResultsSectionStore } from '@/hooks/use-query-explorer';
 
 function ResultsSection(): JSX.Element {
@@ -13,12 +15,18 @@ function ResultsSection(): JSX.Element {
         visibleRows,
         visibleRowTotal,
         showVisualization,
+        chartRowLimit,
         tableSummary,
         tableFallbackMessage,
         chartCaption,
         chartEmptyMessage,
         toggleVisualization,
+        updateChartRowLimit,
     } = useResultsSectionStore();
+
+    function handleChartRowLimitChange(event: ChangeEvent<HTMLInputElement>): void {
+        updateChartRowLimit(event.currentTarget.value);
+    }
 
     return (
         <div className="space-y-6">
@@ -56,15 +64,31 @@ function ResultsSection(): JSX.Element {
             {showVisualization ? (
                 <Card>
                     <CardHeader className="gap-2">
-                        <div className="flex items-center gap-2 text-primary">
-                            <BarChart3 className="size-4" />
-                            <span className="text-xs font-medium uppercase tracking-wide">Chart</span>
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 text-primary">
+                                    <span className="text-xs font-medium uppercase tracking-wide">Chart</span>
+                                </div>
+                                <CardTitle className="mt-2 text-2xl">Visualization</CardTitle>
+                                <CardDescription className="mt-2">{chartCaption}</CardDescription>
+                            </div>
+                            {result && result.rowCount > 0 ? (
+                                <label className="w-full max-w-52 space-y-2">
+                                    <span className="text-sm font-medium">Rows in Chart</span>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max={result.rowCount}
+                                        value={chartRowLimit}
+                                        onChange={handleChartRowLimitChange}
+                                        className="h-10"
+                                    />
+                                </label>
+                            ) : null}
                         </div>
-                        <CardTitle className="text-2xl">Visualization</CardTitle>
-                        <CardDescription>{chartCaption}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <ResultsChart result={result} emptyMessage={chartEmptyMessage} />
+                        <ResultsChart result={result} rowLimit={chartRowLimit} emptyMessage={chartEmptyMessage} />
                     </CardContent>
                 </Card>
             ) : null}

@@ -38,7 +38,6 @@ export interface QueryExecutionResponse {
     rowCount: number;
     sql: string;
     params: Array<string | number>;
-    durationMs: number;
 }
 
 export interface QueryResult extends QueryExecutionResponse {

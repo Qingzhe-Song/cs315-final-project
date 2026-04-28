@@ -316,7 +316,6 @@ function flush_pending_results($connection)
 function execute_custom_query($connection, $input)
 {
     $plan = build_custom_query_plan($input);
-    $startedAt = microtime(true);
     $statement = $connection->prepare($plan['sql']);
 
     if ($statement === false) {
@@ -344,7 +343,6 @@ function execute_custom_query($connection, $input)
         'rowCount' => count($resultData['rows']),
         'sql' => trim($plan['sql']),
         'params' => $plan['params'],
-        'durationMs' => round((microtime(true) - $startedAt) * 1000, 2),
     ];
 }
 
@@ -355,7 +353,6 @@ function execute_query($connection, $queryId, $input)
     }
 
     $plan = build_query_plan($queryId, $input);
-    $startedAt = microtime(true);
     $statement = $connection->prepare($plan['sql']);
 
     if ($statement === false) {
@@ -381,6 +378,5 @@ function execute_query($connection, $queryId, $input)
         'rowCount' => count($resultData['rows']),
         'sql' => $plan['sql'],
         'params' => $plan['params'],
-        'durationMs' => round((microtime(true) - $startedAt) * 1000, 2),
     ];
 }

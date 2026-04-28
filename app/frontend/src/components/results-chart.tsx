@@ -8,6 +8,7 @@ import type { ChartConfig, QueryResult } from '@/types';
 
 interface ResultsChartProps {
     result: QueryResult | null;
+    rowLimit: number;
     emptyMessage: string;
 }
 
@@ -152,14 +153,14 @@ function buildOptions(chart: ChartConfig): object {
     };
 }
 
-function ResultsChart({ result, emptyMessage }: ResultsChartProps): JSX.Element {
+function ResultsChart({ result, rowLimit, emptyMessage }: ResultsChartProps): JSX.Element {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const hasChartData = result ? getChartRows(result) !== null : false;
+    const hasChartData = result ? getChartRows(result, rowLimit) !== null : false;
 
     useEffect(() => {
         const canvas = canvasRef.current;
         const currentResult = result;
-        const data = currentResult ? getChartRows(currentResult) : null;
+        const data = currentResult ? getChartRows(currentResult, rowLimit) : null;
 
         if (!canvas || !data || !currentResult) {
             return;
@@ -177,7 +178,7 @@ function ResultsChart({ result, emptyMessage }: ResultsChartProps): JSX.Element 
         return () => {
             instance.destroy();
         };
-    }, [result]);
+    }, [result, rowLimit]);
 
     return (
         <div className="h-[320px] overflow-hidden rounded-md border p-4">

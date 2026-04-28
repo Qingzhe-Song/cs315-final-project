@@ -2,7 +2,7 @@ import { atom, computed } from 'nanostores';
 
 import { apiUrl, fetchJson } from '@/lib/api';
 import { queryCatalog } from '@/lib/query-catalog';
-import { defaultFormValues } from '@/lib/query-results';
+import { clampChartRowLimit, defaultFormValues } from '@/lib/query-results';
 import type { QueryDefinition, QueryExecutionResponse, QueryMode, QueryResult, QueryStatus } from '@/types';
 
 const DEFAULT_APP_TITLE = 'Steam Discovery Dashboard';
@@ -41,6 +41,7 @@ export const $queryStatus = atom<QueryStatus>('ready');
 export const $statusText = computed($queryStatus, (queryStatus) => `${queryStatus[0].toUpperCase()}${queryStatus.slice(1)}`);
 export const $isRunning = atom(false);
 export const $showVisualization = atom(false);
+export const $chartRowLimit = atom(0);
 
 export const $selectedQuery = computed([$catalog, $selectedQueryId], (catalog, selectedQueryId) => {
     return catalog.find((query) => query.id === selectedQueryId) ?? null;
@@ -77,7 +78,7 @@ export const $tableSummary = computed(
     [$latestResult, $visibleRowTotal, $activeQuery],
     (latestResult, visibleRowTotal, activeQuery) => {
         if (latestResult) {
-            return `${visibleRowTotal} of ${latestResult.rowCount} row(s) shown in ${latestResult.durationMs} ms.`;
+            return `${visibleRowTotal} of ${latestResult.rowCount} row(s) shown.`;
         }
 
         if (activeQuery) {
@@ -88,9 +89,10 @@ export const $tableSummary = computed(
     }
 );
 
-export const $chartCaption = computed($latestResult, (latestResult) => {
+export const $chartCaption = computed([$latestResult, $chartRowLimit], (latestResult, chartRowLimit) => {
     if (latestResult) {
-        return `Only first 12 rows are rendered.`;
+        const visibleChartRows = clampChartRowLimit(chartRowLimit, latestResult.rowCount);
+        return `Rendering first ${visibleChartRows} of ${latestResult.rowCount} fetched rows.`;
     }
 
     return 'Run a query, review the table, then open the visualization if you need it.';
@@ -126,6 +128,7 @@ function applySelection(query: QueryDefinition | null, queryStatus: QueryStatus)
     $formValues.set(query ? defaultFormValues(query) : {});
     $latestResult.set(null);
     $showVisualization.set(false);
+    $chartRowLimit.set(0);
     $queryStatus.set(queryStatus);
 }
 
@@ -137,6 +140,7 @@ export function setQueryMode(queryMode: QueryMode): void {
     $queryMode.set(queryMode);
     $latestResult.set(null);
     $showVisualization.set(false);
+    $chartRowLimit.set(0);
     $queryStatus.set('ready');
 }
 
@@ -200,10 +204,12 @@ export async function runSelectedQuery(): Promise<void> {
             ...result,
             query: selectedQuery,
         });
+        $chartRowLimit.set(result.rowCount);
         $queryStatus.set('complete');
     } catch {
         $latestResult.set(null);
         $showVisualization.set(false);
+        $chartRowLimit.set(0);
         $queryStatus.set('error');
     } finally {
         $isRunning.set(false);
@@ -229,10 +235,12 @@ export async function runCustomQuery(): Promise<void> {
             ...result,
             query: CUSTOM_QUERY_DEFINITION,
         });
+        $chartRowLimit.set(result.rowCount);
         $queryStatus.set('complete');
     } catch {
         $latestResult.set(null);
         $showVisualization.set(false);
+        $chartRowLimit.set(0);
         $queryStatus.set('error');
     } finally {
         $isRunning.set(false);
@@ -245,4 +253,14 @@ export function toggleVisualization(): void {
     }
 
     $showVisualization.set(!$showVisualization.get());
+}
+
+export function updateChartRowLimit(value: string): void {
+    const latestResult = $latestResult.get();
+
+    if (!latestResult) {
+        return;
+    }
+
+    $chartRowLimit.set(clampChartRowLimit(Number(value), latestResult.rowCount));
 }

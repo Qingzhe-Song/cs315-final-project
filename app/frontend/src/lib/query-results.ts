@@ -18,7 +18,18 @@ export interface ChartRows {
 
 export const INITIAL_ROW_COUNT = 20;
 export const ROWS_INCREMENT = 20;
-const CHART_ROW_LIMIT = 12;
+
+export function clampChartRowLimit(rowLimit: number, rowCount: number): number {
+    if (rowCount <= 0) {
+        return 0;
+    }
+
+    if (!Number.isFinite(rowLimit)) {
+        return rowCount;
+    }
+
+    return Math.min(Math.max(1, Math.floor(rowLimit)), rowCount);
+}
 
 export function defaultFormValues(query: QueryDefinition): Record<string, string> {
     return Object.fromEntries(query.inputs.map((input) => [input.name, String(input.default)]));
@@ -67,9 +78,9 @@ function uniqueValues(values: string[], categoryOrder?: string[]): string[] {
     return unique;
 }
 
-function sortedRows(result: QueryResult): QueryResult['rows'] {
+function sortedRows(result: QueryResult, rowLimit: number): QueryResult['rows'] {
     const { categoryOrder, labelColumns, type } = result.query.chart;
-    const rows = result.rows.slice(0, CHART_ROW_LIMIT);
+    const rows = result.rows.slice(0, clampChartRowLimit(rowLimit, result.rows.length));
 
     if (!labelColumns || labelColumns.length !== 1 || (!categoryOrder?.length && type !== 'line')) {
         return rows;
@@ -94,13 +105,13 @@ function bubbleRadius(value: number, min: number, max: number): number {
     return 5 + ((value - min) / (max - min)) * 13;
 }
 
-export function getChartRows(result: QueryResult): ChartRows | null {
+export function getChartRows(result: QueryResult, rowLimit = result.rows.length): ChartRows | null {
     if (!result.rows.length) {
         return null;
     }
 
     const { chart } = result.query;
-    const rows = sortedRows(result);
+    const rows = sortedRows(result, rowLimit);
 
     if ((chart.type === 'scatter' || chart.type === 'bubble') && chart.xColumn && chart.yColumn) {
         const points = rows
