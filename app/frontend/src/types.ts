@@ -1,4 +1,5 @@
 export type InputType = 'number' | 'text';
+export type QueryMode = 'preset' | 'custom';
 export type RowValue = string | number | null;
 
 export interface QueryInput {

@@ -46,19 +46,24 @@ header('Content-Type: application/json; charset=utf-8');
 try {
     $action = $_GET['action'] ?? 'run';
 
-    if ($action !== 'run') {
+    if (!in_array($action, ['run', 'custom'], true)) {
         throw new InvalidArgumentException('Unsupported action.');
     }
 
     $payload = read_json_request();
-    $queryId = isset($payload['queryId']) ? (string) $payload['queryId'] : '';
     $params = [];
 
     if (isset($payload['params']) && is_array($payload['params'])) {
         $params = $payload['params'];
     }
 
-    $result = execute_query($db, $queryId, $params);
+    if ($action === 'custom') {
+        $result = execute_custom_query($db, $params);
+    } else {
+        $queryId = isset($payload['queryId']) ? (string) $payload['queryId'] : '';
+        $result = execute_query($db, $queryId, $params);
+    }
+
     $db->close();
 
     send_json(200, $result);

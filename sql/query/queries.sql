@@ -523,44 +523,6 @@ ORDER BY
 LIMIT
     50;
 
--- 15. Which publisher-developer partnerships are associated with the strongest game performance?
-WITH
-    game_stats AS (
-        SELECT
-            g.GameID,
-            COUNT(r.ReviewID) AS ReviewCount,
-            AVG(
-                CASE
-                    WHEN r.IsRecommended THEN 1
-                    ELSE 0
-                END
-            ) * 100 AS RecommendationPct
-        FROM
-            Game g
-            JOIN Review r ON g.GameID = r.GameID
-        GROUP BY
-            g.GameID
-    )
-SELECT
-    pb.PublisherName,
-    db.DeveloperName,
-    COUNT(DISTINCT gs.GameID) AS NumGames,
-    ROUND(AVG(gs.ReviewCount), 2) AS AvgReviewCount,
-    ROUND(AVG(gs.RecommendationPct), 2) AS AvgRecommendationPct
-FROM
-    game_stats gs
-    JOIN PublishedBy pb ON gs.GameID = pb.GameID
-    JOIN DevelopedBy db ON gs.GameID = db.GameID
-GROUP BY
-    pb.PublisherName,
-    db.DeveloperName
-HAVING
-    COUNT(DISTINCT gs.GameID) >= 2
-ORDER BY
-    AvgRecommendationPct DESC,
-    AvgReviewCount DESC,
-    NumGames DESC;
-
 -- 15. Which features are associated with the highest average recommendation rates and review counts?
 WITH
     game_stats AS (

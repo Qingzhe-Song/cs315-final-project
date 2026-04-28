@@ -1,4 +1,4 @@
-import { BarChart3, Table2 } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import type { JSX } from 'react';
 
 import { ResultsChart } from '@/components/results-chart';
@@ -25,7 +25,6 @@ function ResultsSection(): JSX.Element {
             <Card>
                 <CardHeader className="gap-2">
                     <div className="flex items-center gap-2 text-primary">
-                        <Table2 className="size-4" />
                         <span className="text-xs font-medium uppercase tracking-wide">Table</span>
                     </div>
                     <CardTitle className="text-2xl">Result Table</CardTitle>
