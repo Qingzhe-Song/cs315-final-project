@@ -116,17 +116,15 @@ function CustomQueryCard(): JSX.Element {
 
                         <label className="space-y-2">
                             <span className="text-sm font-medium">Rows to Show</span>
-                            <select
+                            <Input
                                 name="limit"
+                                type="number"
+                                min="1"
+                                max="100"
                                 value={customFormValues.limit}
                                 onChange={handleInputChange}
-                                className={selectClassName}
-                            >
-                                <option value="10">10</option>
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                                <option value="100">100</option>
-                            </select>
+                                className="h-10"
+                            />
                         </label>
                     </div>
 
