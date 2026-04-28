@@ -153,8 +153,6 @@ Several data-cleaning issues had to be handled.
 
 My final schema no longer includes Franchise, so no Franchise.csv file was produced.
 
-DeveloperType is still present in the schema, but the selected public datasets do not provide a reliable DeveloperType field. Therefore, DeveloperType is left blank in the cleaned data and loads as NULL.
-
 9. Replication steps
 
 To replicate the cleaned files:

@@ -1,11 +1,9 @@
-import { Gauge } from 'lucide-react';
 import type { JSX } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useQueryCatalogStore } from '@/hooks/use-query-explorer';
-import { cn } from '@/lib/utils';
 
 function QueryCatalog(): JSX.Element {
     const { catalog, selectedQueryId, selectQuery } = useQueryCatalogStore();
@@ -28,15 +26,12 @@ function QueryCatalog(): JSX.Element {
                                 type="button"
                                 variant={selectedQueryId === query.id ? 'secondary' : 'ghost'}
                                 size="lg"
-                                className={cn(
-                                    'h-auto w-full justify-start whitespace-normal px-4 py-4 text-left'
-                                )}
+                                className="h-auto w-full cursor-pointer justify-start whitespace-normal border border-transparent px-4 py-4 text-left hover:border-border hover:bg-accent hover:shadow-sm"
                                 onClick={() => selectQuery(query.id)}
                             >
                                 <div className="flex w-full flex-col gap-3">
-                                    <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
                                         <span className="text-sm font-medium text-muted-foreground">Query {query.number}</span>
-                                        <Gauge className="size-4 text-muted-foreground" />
                                     </div>
                                     <span
                                         className="text-base font-semibold text-foreground"

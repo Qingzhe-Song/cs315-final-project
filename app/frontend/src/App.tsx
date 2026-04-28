@@ -22,7 +22,6 @@ function App({ initialTitle }: { initialTitle: string }): JSX.Element {
         <div className="min-h-screen bg-background">
             <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
                 <header className="space-y-2">
-                    <p className="text-sm text-muted-foreground">SQL query explorer</p>
                     <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{appTitle}</h1>
                 </header>
 

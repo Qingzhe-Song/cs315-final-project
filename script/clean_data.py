@@ -326,7 +326,7 @@ def main() -> None:
     review_appids = set(review_files_by_appid.keys())
 
     publisher_set: set[tuple[str]] = set()
-    developer_set: set[tuple[str, str]] = set()
+    developer_set: set[tuple[str]] = set()
     platform_set: set[tuple[str]] = {("Windows",), ("macOS",), ("Linux",)}
     genre_set: set[tuple[str]] = set()
     tag_set: set[tuple[str]] = set()
@@ -379,7 +379,7 @@ def main() -> None:
             supports_rows.add((game_id, "Linux"))
 
         for developer_name in developers:
-            developer_set.add((developer_name, ""))
+            developer_set.add((developer_name,))
             developed_by_rows.add((game_id, developer_name))
 
         for publisher_name in publishers:
@@ -400,7 +400,7 @@ def main() -> None:
 
     # Write non-review tables first.
     write_csv(outdir / "Publisher.csv", ["PublisherName"], sorted(publisher_set))
-    write_csv(outdir / "Developer.csv", ["DeveloperName", "DeveloperType"], sorted(developer_set))
+    write_csv(outdir / "Developer.csv", ["DeveloperName"], sorted(developer_set))
     write_csv(outdir / "Platform.csv", ["PlatformName"], [("Windows",), ("macOS",), ("Linux",)])
     write_csv(outdir / "Genre.csv", ["GenreName"], sorted(genre_set))
     write_csv(outdir / "Tag.csv", ["TagName"], sorted(tag_set))
