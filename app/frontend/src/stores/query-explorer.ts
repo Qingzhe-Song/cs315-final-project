@@ -132,6 +132,16 @@ function applySelection(query: QueryDefinition | null, queryStatus: QueryStatus)
     $queryStatus.set(queryStatus);
 }
 
+function startQueryRun(): void {
+    $isRunning.set(true);
+    $showVisualization.set(false);
+    $queryStatus.set('loading');
+}
+
+function finishQueryRun(): void {
+    $isRunning.set(false);
+}
+
 export function setQueryMode(queryMode: QueryMode): void {
     if ($queryMode.get() === queryMode) {
         return;
@@ -185,10 +195,8 @@ export async function runSelectedQuery(): Promise<void> {
         return;
     }
 
-    $isRunning.set(true);
+    startQueryRun();
     $queryMode.set('preset');
-    $showVisualization.set(false);
-    $queryStatus.set('loading');
 
     try {
         const result = await fetchJson<QueryExecutionResponse>(apiUrl('run'), {
@@ -212,15 +220,13 @@ export async function runSelectedQuery(): Promise<void> {
         $chartRowLimit.set(0);
         $queryStatus.set('error');
     } finally {
-        $isRunning.set(false);
+        finishQueryRun();
     }
 }
 
 export async function runCustomQuery(): Promise<void> {
-    $isRunning.set(true);
+    startQueryRun();
     $queryMode.set('custom');
-    $showVisualization.set(false);
-    $queryStatus.set('loading');
 
     try {
         const result = await fetchJson<QueryExecutionResponse>(apiUrl('custom'), {
@@ -243,7 +249,7 @@ export async function runCustomQuery(): Promise<void> {
         $chartRowLimit.set(0);
         $queryStatus.set('error');
     } finally {
-        $isRunning.set(false);
+        finishQueryRun();
     }
 }
 

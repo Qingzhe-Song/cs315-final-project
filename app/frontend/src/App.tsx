@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import { CustomQueryCard } from '@/components/custom-query-card';
 import { QueryCatalog } from '@/components/query-catalog';
 import { QueryFormCard } from '@/components/query-form-card';
+import { QueryLoadingOverlay } from '@/components/query-loading-overlay';
 import { ResultsSection } from '@/components/results-section';
 import { Button } from '@/components/ui/button';
 import { useAppTitleStore, useQueryModeStore } from '@/hooks/use-query-explorer';
@@ -23,6 +24,7 @@ function App({ initialTitle }: { initialTitle: string }): JSX.Element {
 
     return (
         <div className="min-h-screen bg-background">
+            <QueryLoadingOverlay />
             <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
                 <header className="space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{appTitle}</h1>

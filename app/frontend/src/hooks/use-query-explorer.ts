@@ -85,6 +85,14 @@ export function useCustomQueryFormStore() {
     };
 }
 
+export function useQueryLoadingOverlayStore() {
+    const isRunning = useStore($isRunning);
+
+    return {
+        isRunning,
+    };
+}
+
 export function useResultsSectionStore() {
     const result = useStore($latestResult);
     const visibleRows = useStore($visibleRows);
