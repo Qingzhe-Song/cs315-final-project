@@ -41,6 +41,24 @@ function build_call_sql($procedureName, $params)
     return 'CALL ' . $procedureName . '(' . implode(', ', $placeholders) . ')';
 }
 
+// builds the mysqli bind_param type string for prepared statement values.
+function build_param_type_string($params)
+{
+    $types = '';
+
+    foreach ($params as $param) {
+        if (is_int($param)) {
+            $types .= 'i';
+        } elseif (is_float($param)) {
+            $types .= 'd';
+        } else {
+            $types .= 's';
+        }
+    }
+
+    return $types;
+}
+
 // maps a preset query id to its stored procedure and parameter list.
 function build_query_plan($queryId, $input)
 {
@@ -346,36 +364,48 @@ function flush_pending_results($connection)
 function execute_custom_query($connection, $input)
 {
     $plan = build_custom_query_plan($input);
-    $statement = $connection->prepare($plan['sql']);
+    $query = $plan['sql'];
+    $stmt = $connection->prepare($query);
 
     // prepare failures usually mean the generated sql is invalid.
-    if ($statement === false) {
+    if ($stmt === false) {
         throw new RuntimeException('Could not prepare filtered query.');
     }
 
-    // executes with bound params only when filters created placeholders.
-    $didExecute = count($plan['params']) > 0
-        ? $statement->execute($plan['params'])
-        : $statement->execute();
+    $params = $plan['params'];
+
+    // binds values only when filters created placeholders.
+    if (count($params) > 0) {
+        $paramTypes = build_param_type_string($params);
+        $didBind = $stmt->bind_param($paramTypes, ...$params);
+
+        if (!$didBind) {
+            $stmt->close();
+            flush_pending_results($connection);
+            throw new RuntimeException('Could not bind filtered query parameters.');
+        }
+    }
+
+    $didExecute = $stmt->execute();
 
     // closes and flushes before raising so later requests are not poisoned.
     if (!$didExecute) {
-        $statement->close();
+        $stmt->close();
         flush_pending_results($connection);
         throw new RuntimeException('Could not run filtered query.');
     }
 
-    $resultData = fetch_query_rows($statement);
+    $resultData = fetch_query_rows($stmt);
 
-    $statement->close();
+    $stmt->close();
     flush_pending_results($connection);
 
     return [
         'columns' => $resultData['columns'],
         'rows' => $resultData['rows'],
         'rowCount' => count($resultData['rows']),
-        'sql' => trim($plan['sql']),
-        'params' => $plan['params'],
+        'sql' => trim($query),
+        'params' => $params,
     ];
 }
 
@@ -388,25 +418,39 @@ function execute_query($connection, $queryId, $input)
     }
 
     $plan = build_query_plan($queryId, $input);
-    $statement = $connection->prepare($plan['sql']);
+    $query = $plan['sql'];
+    $stmt = $connection->prepare($query);
 
     // prepare failures usually mean a procedure name or signature changed.
-    if ($statement === false) {
+    if ($stmt === false) {
         throw new RuntimeException('Could not prepare query.');
     }
 
-    $didExecute = $statement->execute($plan['params']);
+    $params = $plan['params'];
+
+    if (count($params) > 0) {
+        $paramTypes = build_param_type_string($params);
+        $didBind = $stmt->bind_param($paramTypes, ...$params);
+
+        if (!$didBind) {
+            $stmt->close();
+            flush_pending_results($connection);
+            throw new RuntimeException('Could not bind query parameters.');
+        }
+    }
+
+    $didExecute = $stmt->execute();
 
     // closes and flushes before raising so later requests are not poisoned.
     if (!$didExecute) {
-        $statement->close();
+        $stmt->close();
         flush_pending_results($connection);
         throw new RuntimeException('Could not run query.');
     }
 
-    $resultData = fetch_query_rows($statement);
+    $resultData = fetch_query_rows($stmt);
 
-    $statement->close();
+    $stmt->close();
     flush_pending_results($connection);
 
     // includes sql and params so the frontend can expose useful run details.
@@ -414,7 +458,7 @@ function execute_query($connection, $queryId, $input)
         'columns' => $resultData['columns'],
         'rows' => $resultData['rows'],
         'rowCount' => count($resultData['rows']),
-        'sql' => $plan['sql'],
-        'params' => $plan['params'],
+        'sql' => $query,
+        'params' => $params,
     ];
 }

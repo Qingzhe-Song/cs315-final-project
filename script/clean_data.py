@@ -2,10 +2,13 @@
 """
 Usage
 --------
-python clean_steam_intersection.py 
-    --hf games.parquet
-    --reviews-dir ./mendeley_reviews
-    --outdir ./cleaned_steam_intersection
+Run this command from the project root so the output path matches
+sql/setup/load.sql, which loads CSV files from clean/.
+
+python script/clean_data.py \
+    --hf path/to/games.parquet \
+    --reviews-dir path/to/mendeley_reviews \
+    --outdir clean
 """
 
 from __future__ import annotations
@@ -22,12 +25,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 
 # ---------- generic cleaning helpers ----------
 
 def clean_text(value: Any) -> str:
+    """Normalize missing values and whitespace before other parsers run."""
     if value is None:
         return ""
     if isinstance(value, float) and math.isnan(value):
@@ -42,6 +44,7 @@ def digits_only(value: Any) -> str:
 
 
 def parse_bool(value: Any) -> bool:
+    """Convert common Steam/review truthy values into Python booleans."""
     if isinstance(value, bool):
         return value
     if value is None:
@@ -64,6 +67,7 @@ def parse_bool(value: Any) -> bool:
 
 
 def parse_price(value: Any) -> str:
+    """Return a MySQL-friendly decimal string for game prices."""
     if value is None:
         return "0.00"
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -115,6 +119,7 @@ def parse_int(value: Any) -> str:
 
 
 def parse_date(value: Any) -> str | None:
+    """Convert timestamps and common date formats into YYYY-MM-DD."""
     if value is None:
         return None
 
@@ -226,9 +231,22 @@ def write_csv(path: Path, header: list[str], rows: Iterable[tuple[Any, ...]]) ->
             writer.writerow(row)
 
 
+def load_pandas():
+    """Import pandas only when cleaning runs so --help works without it."""
+    try:
+        import pandas as pd
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "pandas is required to read parquet files and review CSVs. "
+            "Install it in your Python environment before running this script."
+        ) from exc
+    return pd
+
+
 # ---------- HF dataset readers ----------
 
 def iter_hf_games(input_path: Path) -> Iterable[dict[str, Any]]:
+    """Yield Hugging Face game rows from the supported export formats."""
     suffix = input_path.suffix.lower()
 
     if suffix == ".json":
@@ -254,6 +272,7 @@ def iter_hf_games(input_path: Path) -> Iterable[dict[str, Any]]:
         return
 
     if suffix in {".parquet", ".pq"}:
+        pd = load_pandas()
         df = pd.read_parquet(input_path)
         for row in df.to_dict(orient="records"):
             yield row
@@ -265,6 +284,7 @@ def iter_hf_games(input_path: Path) -> Iterable[dict[str, Any]]:
 # ---------- Mendeley review helpers ----------
 
 def scan_review_files(reviews_dir: Path) -> dict[str, list[Path]]:
+    """Group Mendeley review CSV files by the appid prefix in each filename."""
     appid_to_files: dict[str, list[Path]] = {}
     for path in reviews_dir.rglob("*.csv"):
         m = re.match(r"^(\d+)(?:_(\d+))?\.csv$", path.name)
@@ -306,10 +326,18 @@ def synthetic_review_id(game_id: str, shard: int, row_num: int, row: dict[str, A
 # ---------- main cleaning workflow ----------
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Clean Steam metadata and review files into load-ready CSVs.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example from the project root:
+  python script/clean_data.py \\
+      --hf path/to/games.parquet \\
+      --reviews-dir path/to/mendeley_reviews \\
+      --outdir clean""",
+    )
     parser.add_argument("--hf", required=True, help="Path to Hugging Face games file (.csv, .json, or .parquet)")
     parser.add_argument("--reviews-dir", required=True, help="Directory containing Mendeley review CSV files")
-    parser.add_argument("--outdir", default="cleaned_steam_intersection", help="Output directory for cleaned CSVs")
+    parser.add_argument("--outdir", default="clean", help="Output directory for cleaned CSVs loaded by sql/setup/load.sql")
     args = parser.parse_args()
 
     hf_path = Path(args.hf)
@@ -322,6 +350,10 @@ def main() -> None:
     if not reviews_dir.exists():
         raise FileNotFoundError(f"Review directory not found: {reviews_dir}")
 
+    pd = load_pandas()
+
+    # Build the review-side appid set first so game metadata can be filtered to
+    # only games that have at least one matching review file.
     review_files_by_appid = scan_review_files(reviews_dir)
     review_appids = set(review_files_by_appid.keys())
 
@@ -346,6 +378,7 @@ def main() -> None:
     hf_rows_with_matching_reviews = 0
     skipped_hf_rows = 0
 
+    # Create lookup tables and relationship rows from the Hugging Face metadata.
     for row in iter_hf_games(hf_path):
         total_hf_rows += 1
         raw_app_id = clean_text(row.get("appID") or row.get("appid") or row.get("app_id"))
@@ -365,6 +398,8 @@ def main() -> None:
         kept_game_ids.add(game_id)
         game_rows.append((game_id, title, release_date, price))
 
+        # These fields may be real lists, JSON strings, Python-list strings, or
+        # simple comma/semicolon-separated text depending on the source export.
         developers = parse_collection(row.get("developers"))
         publishers = parse_collection(row.get("publishers"))
         categories = parse_collection(row.get("categories"))
