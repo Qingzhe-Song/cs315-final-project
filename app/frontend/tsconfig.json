@@ -1,5 +1,7 @@
 {
+  // compiler options define how vite and typescript validate frontend code.
   "compilerOptions": {
+    // target modern browsers while letting vite handle emitted output.
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
@@ -17,9 +19,12 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
+      // matches vite's @ alias for source imports.
       "@/*": ["./src/*"]
     }
   },
+  // include app source and vite config in type checking.
   "include": ["src", "vite.config.ts"],
+  // skip dependencies because their declarations are checked separately.
   "exclude": ["node_modules"]
 }

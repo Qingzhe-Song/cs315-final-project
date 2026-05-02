@@ -1,6 +1,8 @@
 import type { QueryDefinition } from '@/types';
 
+// catalog metadata drives preset forms, descriptions, and chart choices.
 export const queryCatalog: QueryDefinition[] = [
+    // query 1 compares genre recommendation rates after a release year cutoff.
     {
         id: 'q1',
         number: 1,
@@ -18,6 +20,7 @@ export const queryCatalog: QueryDefinition[] = [
             indexAxis: 'y',
         },
     },
+    // query 2 finds publishers with many highly reviewed games.
     {
         id: 'q2',
         number: 2,
@@ -35,6 +38,7 @@ export const queryCatalog: QueryDefinition[] = [
             indexAxis: 'y',
         },
     },
+    // query 3 tracks the strongest genre per release year.
     {
         id: 'q3',
         number: 3,
@@ -47,6 +51,7 @@ export const queryCatalog: QueryDefinition[] = [
             valueColumns: ['AvgReviewsPerGame'],
         },
     },
+    // query 4 highlights games with high popularity but weaker sentiment.
     {
         id: 'q4',
         number: 4,
@@ -60,6 +65,7 @@ export const queryCatalog: QueryDefinition[] = [
             yColumn: 'ReviewCount',
         },
     },
+    // query 5 compares developer consistency across multiple genres.
     {
         id: 'q5',
         number: 5,
@@ -79,6 +85,7 @@ export const queryCatalog: QueryDefinition[] = [
             radiusColumn: 'NumGames',
         },
     },
+    // query 6 compares review activity across price bands and genres.
     {
         id: 'q6',
         number: 6,
@@ -93,6 +100,7 @@ export const queryCatalog: QueryDefinition[] = [
             categoryOrder: ['Free', 'Under $10', '$10-$29.99', '$30-$59.99', '$60+'],
         },
     },
+    // query 7 visualizes genre growth over release years.
     {
         id: 'q7',
         number: 7,
@@ -109,6 +117,7 @@ export const queryCatalog: QueryDefinition[] = [
             seriesColumn: 'GenreName',
         },
     },
+    // query 8 looks at engagement patterns for multiplayer-related tags.
     {
         id: 'q8',
         number: 8,
@@ -127,6 +136,7 @@ export const queryCatalog: QueryDefinition[] = [
             radiusColumn: 'NumReviews',
         },
     },
+    // query 9 charts games where popularity and sentiment diverge.
     {
         id: 'q9',
         number: 9,
@@ -144,6 +154,7 @@ export const queryCatalog: QueryDefinition[] = [
             radiusColumn: 'MismatchScore',
         },
     },
+    // query 10 aggregates popular-game performance by publisher.
     {
         id: 'q10',
         number: 10,
@@ -161,6 +172,7 @@ export const queryCatalog: QueryDefinition[] = [
             radiusColumn: 'AvgReviewsPerGame',
         },
     },
+    // query 11 compares review activity for games on multiple platforms.
     {
         id: 'q11',
         number: 11,
@@ -178,6 +190,7 @@ export const queryCatalog: QueryDefinition[] = [
             radiusColumn: 'RecommendationPct',
         },
     },
+    // query 12 summarizes common traits among the top-reviewed games.
     {
         id: 'q12',
         number: 12,
@@ -193,6 +206,7 @@ export const queryCatalog: QueryDefinition[] = [
             valueColumns: ['NumTopGames'],
         },
     },
+    // query 13 compares release months by reviews and recommendation rate.
     {
         id: 'q13',
         number: 13,
@@ -207,6 +221,7 @@ export const queryCatalog: QueryDefinition[] = [
             rightAxisColumns: ['AvgRecommendationPct'],
         },
     },
+    // query 14 finds large review-count gaps within year and genre groups.
     {
         id: 'q14',
         number: 14,
@@ -220,6 +235,7 @@ export const queryCatalog: QueryDefinition[] = [
             indexAxis: 'y',
         },
     },
+    // query 15 compares feature performance using bubble chart dimensions.
     {
         id: 'q15',
         number: 15,

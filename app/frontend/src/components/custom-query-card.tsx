@@ -8,17 +8,22 @@ import { Separator } from '@/components/ui/separator';
 import { useCustomQueryFormStore } from '@/hooks/use-query-explorer';
 import { runCustomQuery } from '@/stores/query-explorer';
 
+// shared select styling keeps the custom sort control aligned with inputs.
 const selectClassName =
     'h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
+// renders the custom query form for ad hoc game filtering.
 function CustomQueryCard(): JSX.Element {
+    // pulls form values and query status from the central query store.
     const { customFormValues, statusText, isRunning, updateCustomFormValue } = useCustomQueryFormStore();
 
+    // writes every input change back to the matching form field name.
     function handleInputChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>): void {
         const { name, value } = event.currentTarget;
         updateCustomFormValue(name, value);
     }
 
+    // prevents browser navigation and starts the custom query request.
     function handleSubmit(event: FormEvent<HTMLFormElement>): void {
         event.preventDefault();
         void runCustomQuery();
@@ -28,6 +33,7 @@ function CustomQueryCard(): JSX.Element {
         <Card>
             <CardHeader>
                 <div className="space-y-4">
+                    {/* identifies this card as the custom query builder. */}
                     <div>
                         <div className="mb-2 flex items-center gap-2 text-primary">
                             <span className="text-xs font-medium uppercase tracking-wide">Custom Query</span>
@@ -39,6 +45,7 @@ function CustomQueryCard(): JSX.Element {
             </CardHeader>
             <CardContent>
                 <form className="space-y-6" onSubmit={handleSubmit}>
+                    {/* groups all custom filters in a responsive grid. */}
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         <label className="space-y-2">
                             <span className="text-sm font-medium">Title Contains</span>
@@ -114,6 +121,7 @@ function CustomQueryCard(): JSX.Element {
                             </select>
                         </label>
 
+                        {/* caps result size before the value is sent to the backend. */}
                         <label className="space-y-2">
                             <span className="text-sm font-medium">Rows to Show</span>
                             <Input
@@ -128,6 +136,7 @@ function CustomQueryCard(): JSX.Element {
                         </label>
                     </div>
 
+                    {/* status text and submit action share the bottom row. */}
                     <div className="flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="text-sm font-medium">Status</p>

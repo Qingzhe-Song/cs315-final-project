@@ -3,6 +3,7 @@ import { ScrollArea as ScrollAreaPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+// wraps radix scroll area with the app's default viewport styles.
 function ScrollArea({
   className,
   children,
@@ -20,12 +21,14 @@ function ScrollArea({
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
+      {/* renders the default vertical scrollbar unless a caller adds another one. */}
       <ScrollBar />
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )
 }
 
+// renders a styled radix scrollbar for either axis.
 function ScrollBar({
   className,
   orientation = "vertical",
@@ -37,6 +40,7 @@ function ScrollBar({
       orientation={orientation}
       className={cn(
         "flex touch-none p-px transition-colors select-none",
+        // vertical and horizontal bars swap size and border direction.
         orientation === "vertical" &&
           "h-full w-2.5 border-l border-l-transparent",
         orientation === "horizontal" &&

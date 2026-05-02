@@ -29,10 +29,12 @@ import {
     updateFormValue,
 } from '@/stores/query-explorer';
 
+// exposes the app title atom to components.
 export function useAppTitleStore(): string {
     return useStore($appTitle);
 }
 
+// bundles catalog state with the action that changes the selected query.
 export function useQueryCatalogStore() {
     const catalog = useStore($catalog);
     const selectedQueryId = useStore($selectedQueryId);
@@ -44,6 +46,7 @@ export function useQueryCatalogStore() {
     };
 }
 
+// bundles the active query mode with the mode setter.
 export function useQueryModeStore() {
     const queryMode = useStore($queryMode);
 
@@ -53,6 +56,7 @@ export function useQueryModeStore() {
     };
 }
 
+// gathers all preset form state needed by the preset form card.
 export function useQueryFormStore() {
     const queryTitle = useStore($queryTitle);
     const querySummary = useStore($querySummary);
@@ -72,6 +76,7 @@ export function useQueryFormStore() {
     };
 }
 
+// gathers all custom form state needed by the custom form card.
 export function useCustomQueryFormStore() {
     const customFormValues = useStore($customFormValues);
     const statusText = useStore($statusText);
@@ -85,6 +90,7 @@ export function useCustomQueryFormStore() {
     };
 }
 
+// keeps the loading overlay subscribed only to the running flag.
 export function useQueryLoadingOverlayStore() {
     const isRunning = useStore($isRunning);
 
@@ -93,6 +99,7 @@ export function useQueryLoadingOverlayStore() {
     };
 }
 
+// gathers table and visualization state for the result section.
 export function useResultsSectionStore() {
     const result = useStore($latestResult);
     const visibleRows = useStore($visibleRows);

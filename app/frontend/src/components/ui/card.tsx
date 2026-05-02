@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// base card wrapper for grouped dashboard content.
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -15,6 +16,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// card header arranges title, description, and optional actions.
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -28,6 +30,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// card title applies the shared heading weight and line height.
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -38,6 +41,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// card description uses muted text for supporting copy.
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -48,6 +52,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// card action reserves the top-right slot when a header needs controls.
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -61,6 +66,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// card content provides the main padded body area.
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -71,6 +77,7 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// card footer aligns trailing actions or summary content.
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

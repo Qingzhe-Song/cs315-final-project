@@ -1,12 +1,15 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- declares document metadata needed before react loads. -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Steam Game Insights</title>
   </head>
   <body>
+    <!-- react mounts here and reads the initial title from the data attribute. -->
     <div id="root" data-app-title="Steam Game Insights"></div>
+    <!-- vite loads the frontend entry module during development and build. -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

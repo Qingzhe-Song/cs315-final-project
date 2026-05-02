@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useQueryCatalogStore } from '@/hooks/use-query-explorer';
 
+// renders the selectable list of preset query definitions.
 function QueryCatalog(): JSX.Element {
+    // tracks the selected query so the active button can be highlighted.
     const { catalog, selectedQueryId, selectQuery } = useQueryCatalogStore();
 
     return (
@@ -17,8 +19,10 @@ function QueryCatalog(): JSX.Element {
                 </CardDescription>
             </CardHeader>
             <CardContent>
+                {/* keeps the long query list scrollable within the side panel. */}
                 <ScrollArea className="h-[640px] pr-4">
                     <div className="space-y-3">
+                        {/* each catalog item becomes a button that changes the active query. */}
                         {catalog.map((query) => (
                             <Button
                                 key={query.id}

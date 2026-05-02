@@ -5,6 +5,7 @@ import { Separator as SeparatorPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+// thin divider primitive for separating related sections.
 function Separator({
   className,
   orientation = "horizontal",

@@ -1,5 +1,6 @@
 <?php
 
+// reads integer inputs while falling back when a field is absent or blank.
 function read_int_param($input, $key, $default)
 {
     if (!isset($input[$key]) || $input[$key] === '') {
@@ -9,6 +10,7 @@ function read_int_param($input, $key, $default)
     return (int) $input[$key];
 }
 
+// reads decimal inputs while falling back when a field is absent or blank.
 function read_float_param($input, $key, $default)
 {
     if (!isset($input[$key]) || $input[$key] === '') {
@@ -18,6 +20,7 @@ function read_float_param($input, $key, $default)
     return (float) $input[$key];
 }
 
+// reads text inputs while preserving an explicit empty string.
 function read_string_param($input, $key, $default)
 {
     if (!isset($input[$key])) {
@@ -27,6 +30,7 @@ function read_string_param($input, $key, $default)
     return (string) $input[$key];
 }
 
+// builds a stored procedure call with placeholders for prepared statements.
 function build_call_sql($procedureName, $params)
 {
     if (count($params) === 0) {
@@ -37,11 +41,13 @@ function build_call_sql($procedureName, $params)
     return 'CALL ' . $procedureName . '(' . implode(', ', $placeholders) . ')';
 }
 
+// maps a preset query id to its stored procedure and parameter list.
 function build_query_plan($queryId, $input)
 {
     $procedureName = '';
     $params = [];
 
+    // each case mirrors one preset card in the frontend catalog.
     switch ($queryId) {
         case 'q1':
             $procedureName = 'sp_query_q1';
@@ -154,6 +160,7 @@ function build_query_plan($queryId, $input)
             throw new InvalidArgumentException('Unknown query.');
     }
 
+    // returns both executable sql and the params that fill its placeholders.
     return [
         'procedureName' => $procedureName,
         'params' => $params,
@@ -161,14 +168,17 @@ function build_query_plan($queryId, $input)
     ];
 }
 
+// clamps a numeric input so custom queries cannot request excessive rows.
 function read_limited_int_param($input, $key, $default, $min, $max)
 {
     $value = read_int_param($input, $key, $default);
 
+    // enforces the lower bound before the value reaches sql.
     if ($value < $min) {
         return $min;
     }
 
+    // enforces the upper bound before the value reaches sql.
     if ($value > $max) {
         return $max;
     }
@@ -176,6 +186,7 @@ function read_limited_int_param($input, $key, $default, $min, $max)
     return $value;
 }
 
+// reads optional numeric filters where blank means no filter.
 function read_optional_float_param($input, $key)
 {
     if (!isset($input[$key]) || $input[$key] === '') {
@@ -185,8 +196,10 @@ function read_optional_float_param($input, $key)
     return (float) $input[$key];
 }
 
+// builds the filtered custom query from safe clauses and bound parameters.
 function build_custom_query_plan($input)
 {
+    // the starter where clause keeps later filters easy to join with and.
     $whereClauses = ['1 = 1'];
     $havingClauses = [];
     $params = [];
@@ -199,11 +212,13 @@ function build_custom_query_plan($input)
     $limit = read_limited_int_param($input, 'limit', 25, 1, 100);
     $sortBy = read_string_param($input, 'sort_by', 'reviews');
 
+    // title and genre filters use like patterns while staying parameterized.
     if ($titleKeyword !== '') {
         $whereClauses[] = 'g.Title LIKE ?';
         $params[] = '%' . $titleKeyword . '%';
     }
 
+    // checks genre membership without multiplying rows in the main result.
     if ($genreKeyword !== '') {
         $whereClauses[] = 'EXISTS (
             SELECT 1
@@ -214,21 +229,25 @@ function build_custom_query_plan($input)
         $params[] = '%' . $genreKeyword . '%';
     }
 
+    // release year and price filters apply before aggregation.
     if ($minReleaseYear > 0) {
         $whereClauses[] = 'YEAR(g.ReleaseDate) >= ?';
         $params[] = $minReleaseYear;
     }
 
+    // price is optional, so blank input leaves the filter out entirely.
     if ($maxPrice !== null) {
         $whereClauses[] = 'g.Price <= ?';
         $params[] = $maxPrice;
     }
 
+    // review count is aggregated, so it belongs in having instead of where.
     if ($minReviews > 0) {
         $havingClauses[] = 'COUNT(r.ReviewID) >= ?';
         $params[] = $minReviews;
     }
 
+    // only allows known sort expressions so order by cannot be user supplied sql.
     $orderByOptions = [
         'reviews' => 'ReviewCount DESC, RecommendationPct DESC, g.Title',
         'recommendation' => 'RecommendationPct DESC, ReviewCount DESC, g.Title',
@@ -237,6 +256,7 @@ function build_custom_query_plan($input)
     ];
     $orderBy = $orderByOptions[$sortBy] ?? $orderByOptions['reviews'];
 
+    // selects display fields plus aggregate metrics for the custom result table.
     $sql = '
         SELECT
             CAST(g.GameID AS CHAR) AS GameID,
@@ -251,25 +271,30 @@ function build_custom_query_plan($input)
         WHERE ' . implode(' AND ', $whereClauses) . '
         GROUP BY g.GameID, g.Title, g.ReleaseDate, g.Price';
 
+    // adds aggregate filters only when the form requested them.
     if (count($havingClauses) > 0) {
         $sql .= '
         HAVING ' . implode(' AND ', $havingClauses);
     }
 
+    // appends validated ordering and a clamped limit.
     $sql .= '
         ORDER BY ' . $orderBy . '
         LIMIT ' . $limit;
 
+    // exposes the sql and params so the frontend can show how the query ran.
     return [
         'params' => $params,
         'sql' => $sql,
     ];
 }
 
+// converts a mysqli result into column metadata and row objects.
 function fetch_query_rows($statement)
 {
     $result = $statement->get_result();
 
+    // procedures without a result set return an empty table shape.
     if ($result === false) {
         if ($statement->field_count > 0) {
             throw new RuntimeException('Could not read query results.');
@@ -285,10 +310,12 @@ function fetch_query_rows($statement)
     $rows = [];
     $fields = $result->fetch_fields();
 
+    // records column names so the frontend can build a generic table.
     foreach ($fields as $field) {
         $columns[] = $field->name;
     }
 
+    // fetches associative rows to preserve column names in json.
     while ($row = $result->fetch_assoc()) {
         $rows[] = $row;
     }
@@ -301,31 +328,37 @@ function fetch_query_rows($statement)
     ];
 }
 
+// clears extra result sets left behind by stored procedure calls.
 function flush_pending_results($connection)
 {
     while ($connection->more_results()) {
         $connection->next_result();
         $extraResult = $connection->store_result();
 
+        // frees any extra result object to keep the connection reusable.
         if ($extraResult instanceof mysqli_result) {
             $extraResult->free();
         }
     }
 }
 
+// runs the custom filtered query and formats the shared response payload.
 function execute_custom_query($connection, $input)
 {
     $plan = build_custom_query_plan($input);
     $statement = $connection->prepare($plan['sql']);
 
+    // prepare failures usually mean the generated sql is invalid.
     if ($statement === false) {
         throw new RuntimeException('Could not prepare filtered query.');
     }
 
+    // executes with bound params only when filters created placeholders.
     $didExecute = count($plan['params']) > 0
         ? $statement->execute($plan['params'])
         : $statement->execute();
 
+    // closes and flushes before raising so later requests are not poisoned.
     if (!$didExecute) {
         $statement->close();
         flush_pending_results($connection);
@@ -346,8 +379,10 @@ function execute_custom_query($connection, $input)
     ];
 }
 
+// runs a preset stored procedure and formats the shared response payload.
 function execute_query($connection, $queryId, $input)
 {
+    // rejects empty selection before preparing a stored procedure call.
     if ($queryId === '') {
         throw new InvalidArgumentException('A query id is required.');
     }
@@ -355,12 +390,14 @@ function execute_query($connection, $queryId, $input)
     $plan = build_query_plan($queryId, $input);
     $statement = $connection->prepare($plan['sql']);
 
+    // prepare failures usually mean a procedure name or signature changed.
     if ($statement === false) {
         throw new RuntimeException('Could not prepare query.');
     }
 
     $didExecute = $statement->execute($plan['params']);
 
+    // closes and flushes before raising so later requests are not poisoned.
     if (!$didExecute) {
         $statement->close();
         flush_pending_results($connection);
@@ -372,6 +409,7 @@ function execute_query($connection, $queryId, $input)
     $statement->close();
     flush_pending_results($connection);
 
+    // includes sql and params so the frontend can expose useful run details.
     return [
         'columns' => $resultData['columns'],
         'rows' => $resultData['rows'],

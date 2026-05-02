@@ -8,15 +8,19 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { runSelectedQuery } from '@/stores/query-explorer';
 
+// renders the parameter form for the selected preset query.
 function QueryFormCard(): JSX.Element {
+    // reads the selected query, editable params, and run status from the store.
     const { queryTitle, querySummary, selectedQuery, formValues, statusText, isRunning, updateFormValue } =
         useQueryFormStore();
 
+    // updates the parameter matching the changed input name.
     function handleInputChange(event: ChangeEvent<HTMLInputElement>): void {
         const { name, value } = event.currentTarget;
         updateFormValue(name, value);
     }
 
+    // keeps submission in react and starts the selected stored procedure.
     function handleSubmit(event: FormEvent<HTMLFormElement>): void {
         event.preventDefault();
         void runSelectedQuery();
@@ -35,6 +39,7 @@ function QueryFormCard(): JSX.Element {
             </CardHeader>
             <CardContent>
                 <form className="space-y-6" onSubmit={handleSubmit}>
+                    {/* creates inputs from catalog metadata so each query can differ. */}
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {selectedQuery?.inputs.map((input) => (
                             <label key={input.name} className="space-y-2">
@@ -51,6 +56,7 @@ function QueryFormCard(): JSX.Element {
                         ))}
                     </div>
 
+                    {/* shows current status beside the disabled-aware run button. */}
                     <div className="flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="text-sm font-medium">Status</p>
