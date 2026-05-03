@@ -65,6 +65,8 @@ Leave the frontend running and open another terminal for the backend and databas
 
 ## 4. Install MariaDB
 
+Make sure MariaDB is installed on the same system where the app is running. For example, if the app is running inside WSL, then MariaDB should also be installed and started inside WSL. Do not run MariaDB on Windows while running the app in WSL, because localhost will refer to different environments and the app may not be able to connect correctly.
+
 Install a local MariaDB Server. The official installation guide is here:
 
 https://mariadb.com/docs/server/mariadb-quickstart-guides/installing-mariadb-server-guide
