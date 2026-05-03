@@ -1,4 +1,4 @@
-# CS315 Final Project
+# CS315 Final Project - Steam Game Insights
 
 This repository contains a frontend, a PHP backend, SQL setup scripts, and data-loading scripts for the project database.
 
