@@ -45,3 +45,5 @@ if ($db->connect_error) {
 
 // keeps query results encoded consistently for titles and other text fields.
 $db->set_charset($config['DB_CHARSET']);
+
+?>

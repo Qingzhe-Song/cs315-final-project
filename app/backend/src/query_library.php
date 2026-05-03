@@ -462,3 +462,5 @@ function execute_query($connection, $queryId, $input)
         'params' => $params,
     ];
 }
+
+?>

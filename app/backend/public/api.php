@@ -84,3 +84,5 @@ $db->close();
 
 // wraps the query result in the shared json response format.
 send_json(200, $result);
+
+?>
