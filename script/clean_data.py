@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Usage
---------
 Run this command from the project root so the output path matches
 sql/setup/load.sql, which loads CSV files from clean/.
 
 python script/clean_data.py \
-    --hf path/to/games.parquet \
-    --reviews-dir path/to/mendeley_reviews \
+    --hf source/huggingface/games.json \
+    --reviews-dir source/mendeley/reviews \
     --outdir clean
 """
 
 from __future__ import annotations
 
+# pandas is imported lazily later so --help still works without data tooling.
 import argparse
 import ast
 import csv
@@ -34,6 +33,8 @@ def clean_text(value: Any) -> str:
         return ""
     if isinstance(value, float) and math.isnan(value):
         return ""
+
+    # mysql cannot load embedded nul bytes from csv cleanly.
     text = str(value).replace("\x00", " ").strip()
     text = re.sub(r"\s+", " ", text)
     return text
@@ -54,6 +55,7 @@ def parse_bool(value: Any) -> bool:
             return False
         return value != 0
 
+    # check "not recommended" before broad recommended substring matching.
     text = clean_text(value).lower()
     if text in {"1", "true", "t", "yes", "y", "recommended"}:
         return True
@@ -74,10 +76,13 @@ def parse_price(value: Any) -> str:
         if isinstance(value, float) and math.isnan(value):
             return "0.00"
         return f"{float(value):.2f}"
+
     text = clean_text(value)
     if not text:
         return "0.00"
     text = text.replace("$", "").replace(",", "")
+
+    # unparseable prices become 0.00 so one bad field does not stop the run.
     try:
         return f"{float(text):.2f}"
     except ValueError:
@@ -89,15 +94,17 @@ def parse_hours_played(value: Any, source_col: str = "") -> str:
         return ""
     if isinstance(value, float) and math.isnan(value):
         return ""
+
     text = clean_text(value).replace(",", "")
     if not text:
         return ""
+
     try:
         num = float(text)
     except ValueError:
         return ""
 
-    # Steam API playtime_forever style columns are minutes.
+    # steam api playtime_forever style columns are minutes.
     if source_col.lower() in {"playtime_forever", "author.playtime_forever", "author_playtime_forever"}:
         num = num / 60.0
     return f"{num:.2f}"
@@ -108,9 +115,11 @@ def parse_int(value: Any) -> str:
         return "0"
     if isinstance(value, float) and math.isnan(value):
         return "0"
+
     text = clean_text(value).replace(",", "")
     if not text:
         return "0"
+
     try:
         # tolerate strings like "10.0"
         return str(int(float(text)))
@@ -157,12 +166,15 @@ def parse_date(value: Any) -> str | None:
         "%Y-%m-%d %H:%M:%S.%f",
         "%Y/%m/%d %H:%M:%S",
     ]
+
+    # try common steam and dataset date formats before giving up.
     for fmt in formats:
         try:
             return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
         except ValueError:
             pass
 
+    # month-only release dates use the first day to stay loadable.
     for fmt in ["%b %Y", "%B %Y"]:
         try:
             dt = datetime.strptime(text, fmt)
@@ -183,6 +195,7 @@ def parse_collection(value: Any) -> list[str]:
         return []
     if isinstance(value, float) and math.isnan(value):
         return []
+
     if isinstance(value, list):
         items = value
     elif isinstance(value, dict):
@@ -191,6 +204,8 @@ def parse_collection(value: Any) -> list[str]:
         text = clean_text(value)
         if not text or text in {"[]", "{}", "nan", "None", "null"}:
             return []
+
+        # prefer json, then python literals, then loose delimiter splitting.
         parsed: Any
         try:
             parsed = json.loads(text)
@@ -210,6 +225,8 @@ def parse_collection(value: Any) -> list[str]:
 
     result: list[str] = []
     seen: set[str] = set()
+
+    # flatten item dictionaries and de-duplicate while preserving order.
     for item in items:
         if isinstance(item, dict):
             candidates = [item.get("name"), item.get("title"), item.get("description"), item.get("text")]
@@ -224,6 +241,8 @@ def parse_collection(value: Any) -> list[str]:
 
 def write_csv(path: Path, header: list[str], rows: Iterable[tuple[Any, ...]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # newline="" lets csv.writer control line endings consistently.
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(header)
@@ -233,6 +252,7 @@ def write_csv(path: Path, header: list[str], rows: Iterable[tuple[Any, ...]]) ->
 
 def load_pandas():
     """Import pandas only when cleaning runs so --help works without it."""
+    # keep the dependency error focused on the user's action.
     try:
         import pandas as pd
     except ModuleNotFoundError as exc:
@@ -243,7 +263,7 @@ def load_pandas():
     return pd
 
 
-# ---------- HF dataset readers ----------
+# ---------- hf dataset readers ----------
 
 def iter_hf_games(input_path: Path) -> Iterable[dict[str, Any]]:
     """Yield Hugging Face game rows from the supported export formats."""
@@ -281,11 +301,13 @@ def iter_hf_games(input_path: Path) -> Iterable[dict[str, Any]]:
     raise ValueError("--hf must point to a .csv, .json, or .parquet file")
 
 
-# ---------- Mendeley review helpers ----------
+# ---------- mendeley review helpers ----------
 
 def scan_review_files(reviews_dir: Path) -> dict[str, list[Path]]:
     """Group Mendeley review CSV files by the appid prefix in each filename."""
     appid_to_files: dict[str, list[Path]] = {}
+
+    # only appid.csv and appid_shard.csv filenames can be linked to steam ids.
     for path in reviews_dir.rglob("*.csv"):
         m = re.match(r"^(\d+)(?:_(\d+))?\.csv$", path.name)
         if not m:
@@ -293,6 +315,7 @@ def scan_review_files(reviews_dir: Path) -> dict[str, list[Path]]:
         appid = m.group(1)
         appid_to_files.setdefault(appid, []).append(path)
 
+    # sort shard files so generated review ids remain stable between runs.
     for appid in appid_to_files:
         appid_to_files[appid].sort(key=lambda p: p.name)
     return appid_to_files
@@ -314,10 +337,11 @@ def choose_column(columns: list[str], candidates: list[str]) -> str | None:
 
 
 def synthetic_review_id(game_id: str, shard: int, row_num: int, row: dict[str, Any]) -> str:
-    # Prefer a collision-free numeric concatenation when it comfortably fits.
+    # prefer collision-free numeric concatenation when it comfortably fits.
     if len(game_id) <= 8 and 0 <= shard <= 999999 and 0 <= row_num <= 999999:
         return f"{game_id}{shard:06d}{row_num:06d}"
 
+    # hash stable row content when the numeric pieces are too large.
     raw = f"{game_id}|{shard}|{row_num}|{clean_text(row.get('user'))}|{clean_text(row.get('post_date'))}|{clean_text(row.get('review'))}"
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()
     return str(int(digest[:18], 16) % (10 ** 20))
@@ -326,6 +350,7 @@ def synthetic_review_id(game_id: str, shard: int, row_num: int, row: dict[str, A
 # ---------- main cleaning workflow ----------
 
 def main() -> None:
+    # cli arguments keep raw data locations outside the script.
     parser = argparse.ArgumentParser(
         description="Clean Steam metadata and review files into load-ready CSVs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -343,6 +368,7 @@ def main() -> None:
     hf_path = Path(args.hf)
     reviews_dir = Path(args.reviews_dir)
     outdir = Path(args.outdir)
+
     outdir.mkdir(parents=True, exist_ok=True)
 
     if not hf_path.exists():
@@ -352,11 +378,11 @@ def main() -> None:
 
     pd = load_pandas()
 
-    # Build the review-side appid set first so game metadata can be filtered to
-    # only games that have at least one matching review file.
+    # build the review-side appid set first so metadata can be filtered.
     review_files_by_appid = scan_review_files(reviews_dir)
     review_appids = set(review_files_by_appid.keys())
 
+    # sets prevent duplicate lookup rows from repeated game metadata.
     publisher_set: set[tuple[str]] = set()
     developer_set: set[tuple[str]] = set()
     platform_set: set[tuple[str]] = {("Windows",), ("macOS",), ("Linux",)}
@@ -367,6 +393,7 @@ def main() -> None:
     game_rows: list[tuple[Any, ...]] = []
     kept_game_ids: set[str] = set()
 
+    # relationship tables use sets for the same duplicate protection.
     developed_by_rows: set[tuple[str, str]] = set()
     supports_rows: set[tuple[str, str]] = set()
     published_by_rows: set[tuple[str, str]] = set()
@@ -378,9 +405,11 @@ def main() -> None:
     hf_rows_with_matching_reviews = 0
     skipped_hf_rows = 0
 
-    # Create lookup tables and relationship rows from the Hugging Face metadata.
+    # create lookup tables and relationship rows from hf metadata.
     for row in iter_hf_games(hf_path):
         total_hf_rows += 1
+
+        # source files disagree on the app id column name.
         raw_app_id = clean_text(row.get("appID") or row.get("appid") or row.get("app_id"))
         game_id = digits_only(raw_app_id)
         if not game_id or game_id not in review_appids:
@@ -390,6 +419,7 @@ def main() -> None:
         release_date = parse_date(row.get("release_date") or row.get("ReleaseDate"))
         price = parse_price(row.get("price"))
 
+        # title and release date are required for a valid game row.
         if not title or not release_date:
             skipped_hf_rows += 1
             continue
@@ -398,14 +428,14 @@ def main() -> None:
         kept_game_ids.add(game_id)
         game_rows.append((game_id, title, release_date, price))
 
-        # These fields may be real lists, JSON strings, Python-list strings, or
-        # simple comma/semicolon-separated text depending on the source export.
+        # these fields can be lists, json strings, python-list strings, or text.
         developers = parse_collection(row.get("developers"))
         publishers = parse_collection(row.get("publishers"))
         categories = parse_collection(row.get("categories"))
         genres = parse_collection(row.get("genres"))
         tags = parse_collection(row.get("tags"))
 
+        # platform booleans become game-to-platform relationship rows.
         if parse_bool(row.get("windows")):
             supports_rows.add((game_id, "Windows"))
         if parse_bool(row.get("mac")):
@@ -413,6 +443,7 @@ def main() -> None:
         if parse_bool(row.get("linux")):
             supports_rows.add((game_id, "Linux"))
 
+        # collection fields populate both lookup and relationship tables.
         for developer_name in developers:
             developer_set.add((developer_name,))
             developed_by_rows.add((game_id, developer_name))
@@ -433,7 +464,7 @@ def main() -> None:
             feature_set.add((feature_name,))
             has_features_rows.add((game_id, feature_name))
 
-    # Write non-review tables first.
+    # write non-review tables first.
     write_csv(outdir / "Publisher.csv", ["PublisherName"], sorted(publisher_set))
     write_csv(outdir / "Developer.csv", ["DeveloperName"], sorted(developer_set))
     write_csv(outdir / "Platform.csv", ["PlatformName"], [("Windows",), ("macOS",), ("Linux",)])
@@ -448,8 +479,9 @@ def main() -> None:
     write_csv(outdir / "TaggedWith.csv", ["GameID", "TagName"], sorted(tagged_with_rows))
     write_csv(outdir / "HasFeatures.csv", ["GameID", "FeatureName"], sorted(has_features_rows))
 
-    # Stream Review.csv to avoid holding all reviews in memory.
+    # stream Review.csv to avoid holding all reviews in memory.
     review_csv_path = outdir / "Review.csv"
+
     review_rows_written = 0
     review_files_read = 0
     review_files_skipped = 0
@@ -459,25 +491,30 @@ def main() -> None:
         writer = csv.writer(f)
         writer.writerow(["ReviewID", "ReviewDate", "IsRecommended", "HelpfulVotes", "HoursPlayed", "GameID"])
 
+        # only read reviews for games that survived metadata cleaning.
         for game_id in sorted(kept_game_ids):
             for review_file in review_files_by_appid.get(game_id, []):
                 review_files_read += 1
+
                 try:
                     rdf = pd.read_csv(review_file)
                 except Exception:
                     review_files_skipped += 1
                     continue
 
+                # choose the first known spelling that exists in this file.
                 columns = list(rdf.columns)
                 date_col = choose_column(columns, ["post_date", "timestamp_created", "created_at", "date"])
                 recommend_col = choose_column(columns, ["recommend", "voted_up", "is_recommended", "recommended"])
                 helpful_col = choose_column(columns, ["helpfulness", "votes_up", "helpful_votes"])
                 playtime_col = choose_column(columns, ["playtime", "author.playtime_forever", "author_playtime_forever", "playtime_forever", "hours_played"])
 
+                # date and recommendation are required by Review.csv.
                 if date_col is None or recommend_col is None:
                     review_files_skipped += 1
                     continue
 
+                # shard number keeps synthetic review ids stable across files.
                 shard = extract_shard_from_filename(review_file)
                 for row_num, row in enumerate(rdf.to_dict(orient="records"), start=1):
                     review_date = parse_date(row.get(date_col))
@@ -500,6 +537,7 @@ def main() -> None:
                     ])
                     review_rows_written += 1
 
+    # persist a compact audit trail for kept, skipped, and written rows.
     summary = {
         "hf_input": str(hf_path),
         "reviews_dir": str(reviews_dir),
@@ -530,8 +568,10 @@ def main() -> None:
     with (outdir / "cleaning_summary.json").open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
+    # print the same summary for immediate feedback in command-line runs.
     print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":
+    # keep module import side-effect free.
     main()

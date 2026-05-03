@@ -159,7 +159,7 @@ To replicate the cleaned files:
 
 1. Download the Hugging Face Steam Games dataset.
 2. Download the Mendeley review dataset and place all review CSV files into one folder or subfolders.
-3. Run the Python cleaning script on both sources.
+3. Run the Python cleaning script on both sources, the script usage is documented in the top of clean_data.py
 4. The script writes cleaned CSV files into the output directory.
 5. Run setup.sql to create the tables.
 6. Run load.sql to load the cleaned CSV files into MySQL.

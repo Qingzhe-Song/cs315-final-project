@@ -1,4 +1,4 @@
--- Drop the highest-numbered procedures first to keep the recreation order clean.
+-- drop procedures before recreating the query package.
 DROP PROCEDURE IF EXISTS sp_query_q15;
 DROP PROCEDURE IF EXISTS sp_query_q14;
 DROP PROCEDURE IF EXISTS sp_query_q13;
