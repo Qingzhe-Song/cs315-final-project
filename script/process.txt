@@ -157,6 +157,8 @@ My final schema no longer includes Franchise, so no Franchise.csv file was produ
 
 To replicate the cleaned files:
 
+Make sure you have the required python library: pip install pandas pyarrow
+
 1. Download the Hugging Face Steam Games dataset.
 2. Download the Mendeley review dataset and place all review CSV files into one folder or subfolders.
 3. Run the Python cleaning script on both sources, the script usage is documented in the top of clean_data.py; Or you can just run the python script and it will tell you the requried parameters

@@ -28,6 +28,25 @@ cs315-final-project/
 
 Do not rename the `clean` folder. The database load script expects CSV files at paths like `clean/Developer.csv`.
 
+Alternatively, download the original source data from this link:
+
+https://livejohnshopkins-my.sharepoint.com/:u:/g/personal/qsong12_jh_edu/IQCc9v1-rp06SatTUo1jS_uLAbNDphstdOVZkXFXiPyt9QY?e=hzLuNV
+
+If you use the original source data, install the required Python libraries first:
+
+```bash
+pip install pandas pyarrow
+```
+
+Then run the cleaning script from the project home directory to generate the `clean` folder:
+
+```bash
+python script/clean_data.py \
+    --hf path/to/games.json \
+    --reviews-dir path/to/reviews \
+    --outdir clean
+```
+
 ## 3. Set Up the Frontend
 
 Go to the frontend folder:
@@ -191,4 +210,3 @@ With the frontend and backend both running, open:
 http://localhost:5173/
 
 The application should now be fully functional.
-
