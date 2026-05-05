@@ -28,7 +28,7 @@ cs315-final-project/
 
 Do not rename the `clean` folder. The database load script expects CSV files at paths like `clean/Developer.csv`.
 
-Alternatively, download the original source data from this link:
+Alternatively, if you want to create the clean data yourself, download the original source data from this link:
 
 https://livejohnshopkins-my.sharepoint.com/:u:/g/personal/qsong12_jh_edu/IQCc9v1-rp06SatTUo1jS_uLAbNDphstdOVZkXFXiPyt9QY?e=hzLuNV
 
@@ -115,13 +115,13 @@ USE database_name;
 Create a database user:
 
 ```sql
-CREATE USER username@localhost IDENTIFIED BY 'Password';
+CREATE USER 'username'@'localhost' IDENTIFIED BY 'Password';
 ```
 
 Grant the user privileges on the project database:
 
 ```sql
-GRANT ALL PRIVILEGES ON database_name.* TO username@localhost;
+GRANT ALL PRIVILEGES ON database_name.* TO 'username'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
